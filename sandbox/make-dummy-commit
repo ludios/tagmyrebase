@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# This is useful for making a dummy commit on an upstream repo, for testing.
+
+random_word() {
+	cat /usr/share/dict/words | tail -n +$RANDOM | head -n 1
+}
+
+echo "$(random_word)" >> garbage
+
+git add garbage
+
+git commit -m "Dummy commit: $(random_word) $(random_word) $(random_word)"
