@@ -15,6 +15,7 @@ lsu - list upstream commits
 	Note that marked upstream commits may be on different upstream branches
 """
 
+import datetime
 import subprocess
 import argparse
 import pprint
@@ -25,7 +26,7 @@ def call(cmd):
 
 
 def get_tag_name(branch_name, t):
-	return branch_name + "-" + t.strftime('%Y-%m-%d_%H:%M:%S')
+	return branch_name + "-" + t.strftime('%Y-%m-%d_%H-%M-%S')
 
 
 def get_tag_message(upstream_commit):
@@ -40,7 +41,8 @@ def get_reflog_entries(branch_name):
 		before_email, after_email = line.split(">", 1)
 		before_email += ">"
 		old, new, email = before_email.split(" ", 2)
-		date, tz, message = after_email.split(" ", 2)
+		_, date, tz = after_email.split("\t", 1)[0].split(" ", 2)
+		message = after_email.split("\t", 1)[1]
 		yield dict(old=old, new=new, email=email, date=date, tz=tz, message=message)
 
 
@@ -57,7 +59,7 @@ e97eaa20eb92dc4b7c8f481a705c74db80064077 e97eaa20eb92dc4b7c8f481a705c74db8006407
 bcbc9df714ea4a9c835faac3b7776b882a31971e 1e1395dc1a28bc917cc46cb86acf1ba7cb87bd4f Ivan Kozik <ivan@ludios.org> 1376986783 +0000 pull --rebase: Add mything
 1e1395dc1a28bc917cc46cb86acf1ba7cb87bd4f 1e1395dc1a28bc917cc46cb86acf1ba7cb87bd4f Ivan Kozik <ivan@ludios.org> 1376986783 +0000 rebase finished: returning to refs/heads/master
 	"""
-	entries = list(reversed(get_reflog_entries("HEAD")))
+	entries = list(reversed(list(get_reflog_entries("HEAD"))))
 
 	for entry in entries:
 		# TODO: add more verification that the rebase finished?
