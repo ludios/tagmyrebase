@@ -1,18 +1,13 @@
+#!/usr/bin/env python
+
 """
-(Draft)
+Utility to mark the HEAD with a branch and timestamped tag, and the upstream
+commit (that we're rebased on top of) with another timestamped tag.
 
-Operations:
+This allows you to
 
-mb - mark current commit as bien, mark detected upstream commit as gu
-	Creates a git tag that contains the current date and the upstream commit
-mu - mark this commit as a known-good upstream commit
-	Creates a git tag with the current date
-		Does not include the upstream branch name; branch names can change
-lsb - list bien commits
-	You can use this to jump to an older bien, which may have different
-	patches than the ones you have on the latest bien
-lsu - list upstream commits
-	Note that marked upstream commits may be on different upstream branches
+1) easily find an older set of rebased patches with `git tag`
+2) see in tig/gitk which commits you've previously rebased onto.
 """
 
 import sys
@@ -50,25 +45,18 @@ def get_reflog_entries(branch_name):
 
 def get_upstream_commit():
 	"""
-	If HEAD matches upstream commit (we have no patches on top of upstream):
-
-	1ca58dc4f6b00660bc82385f5b0d0c05d01881e5 e97eaa20eb92dc4b7c8f481a705c74db80064077 Ivan Kozik <ivan@ludios.org> 1376986238 +0000 checkout: moving from master to e97eaa20eb92dc4b7c8f481a705c74db80064077^0
-e97eaa20eb92dc4b7c8f481a705c74db80064077 e97eaa20eb92dc4b7c8f481a705c74db80064077 Ivan Kozik <ivan@ludios.org> 1376986238 +0000 rebase finished: returning to refs/heads/master
-
-	If HEAD does not match upstream commit (we do have patches on top of upstream):
-
-	b06c798443651975c7f1cf381074dad0767e86e1 bcbc9df714ea4a9c835faac3b7776b882a31971e Ivan Kozik <ivan@ludios.org> 1376986783 +0000 checkout: moving from master to bcbc9df714ea4a9c835faac3b7776b882a31971e^0
-bcbc9df714ea4a9c835faac3b7776b882a31971e 1e1395dc1a28bc917cc46cb86acf1ba7cb87bd4f Ivan Kozik <ivan@ludios.org> 1376986783 +0000 pull --rebase: Add mything
-1e1395dc1a28bc917cc46cb86acf1ba7cb87bd4f 1e1395dc1a28bc917cc46cb86acf1ba7cb87bd4f Ivan Kozik <ivan@ludios.org> 1376986783 +0000 rebase finished: returning to refs/heads/master
+	Return the upstream commit that our patches (if we have any) are rebased on top of.
 	"""
 	entries = list(reversed(list(get_reflog_entries("HEAD"))))
 
 	for entry in entries:
-		# TODO: add more verification that the rebase finished?
+		# TODO: add more verification that the rebase finished? (and for the right branch)
 		if entry["message"].startswith("checkout: moving from "):
 			return entry["new"]
 
-	raise RuntimeError("Could not find upstream commit in reflog; entries are:\n%s" % (pprint.pformat(entries),))
+	raise RuntimeError(
+		"Could not find upstream commit in reflog; "
+		"entries are:\n%s" % (pprint.pformat(entries),))
 
 
 def get_commit(branch_name):
@@ -81,17 +69,23 @@ def now():
 
 def main():
 	parser = argparse.ArgumentParser(description="""
-	TODO XXX
+	Utility to mark the HEAD with a branch and timestamped tag, and the upstream
+	commit (that we're rebased on top of) with another timestamped tag.
+
+	This allows you to
+
+	1) easily find an older set of rebased patches
+	2) see in tig/gitk which commits you've previously rebased onto.
 	""")
 
-	parser.add_argument('-m', '--mark', dest='mark',
-		help="mark the current HEAD with this branch name, and also "
-		     "create a tag with this branch name and the current timestamp")
+	parser.add_argument('-m', '--mark', dest='branch_name',
+		help="force-create a branch with this name pointing to HEAD, mark "
+		     "it with a timestamped tag; also mark the upstream commit with a timestamped tag")
 
 	args = parser.parse_args()
 
-	if args.mark:
-		branch_name = args.mark
+	if args.branch_name:
+		branch_name = args.branch_name
 		if get_commit(branch_name) == get_commit("HEAD"):
 			print >>sys.stderr, "HEAD is already marked as %s" % (branch_name,)
 		else:
@@ -99,11 +93,16 @@ def main():
 			t = now()
 			call(["git", "branch", "-f", branch_name])
 			# Mark the upstream commit
-			call(["git", "tag", "-a", "--message", "", "upstream-" + get_tag_name(branch_name, t), upstream_commit])
+			call(["git", "tag", "-a", "--message", "",
+				"upstream-" + get_tag_name(branch_name, t), upstream_commit])
 			# Mark the downstream commit
-			call(["git", "tag", "-a", "--message", get_tag_message(upstream_commit), get_tag_name(branch_name, t)])
+			call(["git", "tag", "-a", "--message", get_tag_message(upstream_commit),
+				get_tag_name(branch_name, t)])
 	else:
-		print >>sys.stderr, "Must specify --mark branchname"
+		print >>sys.stderr, "Must specify --mark branchname; see --help"
+
+# TODO: add command to mark upstream branch as good, even if we can't yet
+# rebase our patchset on top of it?
 
 
 if __name__ == '__main__':
