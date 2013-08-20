@@ -15,6 +15,7 @@ lsu - list upstream commits
 	Note that marked upstream commits may be on different upstream branches
 """
 
+import sys
 import datetime
 import subprocess
 import argparse
@@ -33,6 +34,7 @@ def get_tag_message(upstream_commit):
 	# Annotated tag already has tagger name, e-mail, and date
 	# TODO XXX: what if this date doesn't match the date that Python gets?
 	# Should we use a courser-grained tag name that doesn't include the full timestamp?
+	# Or set GIT_COMMITTER_DATE for git tag
 	return "Onto: %s\n" % (upstream_commit,)
 
 
@@ -69,6 +71,10 @@ bcbc9df714ea4a9c835faac3b7776b882a31971e 1e1395dc1a28bc917cc46cb86acf1ba7cb87bd4
 	raise RuntimeError("Could not find upstream commit in reflog; entries are:\n%s" % (pprint.pformat(entries),))
 
 
+def get_commit(branch_name):
+	return subprocess.check_output(["git", "rev-parse", branch_name]).split()[0]
+
+
 def now():
 	return datetime.datetime.now()
 
@@ -86,15 +92,18 @@ def main():
 
 	if args.mark:
 		branch_name = args.mark
-		upstream_commit = get_upstream_commit()
-		t = now()
-		call(["git", "branch", "-f", branch_name])
-		# Mark the upstream commit
-		call(["git", "tag", "-a", "--message", "", "upstream-" + get_tag_name(branch_name, t), upstream_commit])
-		# Mark the downstream commit
-		call(["git", "tag", "-a", "--message", get_tag_message(upstream_commit), get_tag_name(branch_name, t)])
+		if get_commit(branch_name) == get_commit("HEAD"):
+			print >>sys.stderr, "HEAD is already marked as %s" % (branch_name,)
+		else:
+			upstream_commit = get_upstream_commit()
+			t = now()
+			call(["git", "branch", "-f", branch_name])
+			# Mark the upstream commit
+			call(["git", "tag", "-a", "--message", "", "upstream-" + get_tag_name(branch_name, t), upstream_commit])
+			# Mark the downstream commit
+			call(["git", "tag", "-a", "--message", get_tag_message(upstream_commit), get_tag_name(branch_name, t)])
 	else:
-		print "Must specify --mark branchname"
+		print >>sys.stderr, "Must specify --mark branchname"
 
 
 if __name__ == '__main__':
