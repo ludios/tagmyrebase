@@ -92,9 +92,9 @@ def main():
 			upstream_commit = get_upstream_commit()
 			t = now()
 			call(["git", "branch", "-f", branch_name])
-			# Mark the upstream commit
+			# Mark the upstream commit (use a short "U-" prefix to avoid long tag names.)
 			call(["git", "tag", "-a", "--message", "",
-				"upstream-" + get_tag_name(branch_name, t), upstream_commit])
+				"U-" + get_tag_name(branch_name, t), upstream_commit])
 			# Mark the downstream commit
 			call(["git", "tag", "-a", "--message", get_tag_message(upstream_commit),
 				get_tag_name(branch_name, t)])
