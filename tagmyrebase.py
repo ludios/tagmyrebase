@@ -15,6 +15,10 @@ git pull --rebase
 tagmyrebase.py --branch-head good --tag-head 'good-{YMDN}' --tag-upstream 'U-{YMDN}'
 
 All three arguments are optional.
+
+For any of --tag-head, --branch-head, and --tag-upstream, you can use {YMDHMS}
+to insert the current time, or {YMDN} to insert the current date with a
+counter that avoids collision with existing tags.
 """
 
 __version__ = '0.2'
@@ -149,9 +153,9 @@ def main():
 	2) see in tig/gitk which commits you've previously rebased onto.  This is
 	   useful for seeing which new commits you might need to review.
 
-	For an of --tag-head, --branch-head, and --tag-upstream, you can use
+	For any of --tag-head, --branch-head, and --tag-upstream, you can use
 	{YMDHMS} to insert the current time, or {YMDN} to insert the current date
-	with a counter.
+	with a counter that avoids collision with existing tags.
 	""")
 
 	parser.add_argument('-t', '--tag-head', dest='tag_head',
