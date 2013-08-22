@@ -2,13 +2,18 @@
 
 """
 Utility to mark the HEAD with a branch and timestamped tag, and the upstream
-commit (that we're rebased on top of) with another timestamped tag.  All three
-markings are optional.
+commit (that we're rebased on top of) with another timestamped tag.
 
 This allows you to
 
 1) easily find an older set of rebased patches with `git tag`
 2) see in tig/gitk which commits you've previously rebased onto.
+
+Sample usage:
+git pull --rebase
+tagmyrebase.py --branch-head good --tag-head 'good-{YMDHMS}' --tag-upstream 'U-{YMDHMS}'
+
+All three arguments are optional.
 """
 
 __version__ = '0.1'
@@ -31,17 +36,41 @@ def get_re_for_format_string(format_string):
 	if a tag already exists.
 	"""
 	YMDHMS_RE = r'\d\d\d\d-[01]\d-[0-3]\d_[0-2]\d-[0-5]\d-[0-6]\d'
-	return re.compile(r'\A' + format_string.replace('{YMDHMS}', YMDHMS_RE) + r'\Z')
+	YMDN_RE = r'\d\d\d\d-[01]\d-[0-3]\d\.\d+'
+	return re.compile(r'\A' + format_string.replace('{YMDHMS}', YMDHMS_RE).replace('{YMDN}', YMDN_RE) + r'\Z')
 
 
 def get_tags_on_commit(commit):
-	stdout = subprocess.check_output(["git", "tag", "--points-at", commit])
+	stdout = subprocess.check_output(["git", "tag", "-l", "--points-at", commit])
+	tags = stdout.replace("\r", "").strip("\n").split("\n")
+	return tags
+
+
+def get_all_tags():
+	stdout = subprocess.check_output(["git", "tag", "-l"])
 	tags = stdout.replace("\r", "").strip("\n").split("\n")
 	return tags
 
 
 def get_expanded_name(format_string, t):
-	return format_string.format(YMDHMS=t.strftime('%Y-%m-%d_%H-%M-%S'))
+	ymdn = None
+	if '{YMDN}' in format_string:
+		all_tags = set(get_all_tags())
+		ymd = t.strftime('%Y-%m-%d')
+		for n in xrange(1, 100000):
+			proposed_ymdn = ymd + '.' + str(n)
+			proposed_tag = get_expanded_name(
+				format_string.format(YMDN=proposed_ymdn, YMDHMS='{YMDHMS}'), t)
+			if not proposed_tag in all_tags:
+				ymdn = proposed_ymdn
+				break
+		else:
+			raise RuntimeError("100,000 tags in one day is too many tags")
+
+	return format_string.format(
+		YMDHMS=t.strftime('%Y-%m-%d_%H-%M-%S'),
+		YMDN=ymdn
+	)
 
 
 def get_tag_message(upstream_commit):
