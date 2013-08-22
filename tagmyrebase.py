@@ -7,7 +7,8 @@ commit (that we're rebased on top of) with another timestamped tag.
 This allows you to
 
 1) easily find an older set of rebased patches with `git tag`
-2) see in tig/gitk which commits you've previously rebased onto.
+2) see in tig/gitk which commits you've previously rebased onto.  This is
+   useful for seeing which new commits you might need to review.
 
 Sample usage:
 git pull --rebase
@@ -16,7 +17,7 @@ tagmyrebase.py --branch-head good --tag-head 'good-{YMDN}' --tag-upstream 'U-{YM
 All three arguments are optional.
 """
 
-__version__ = '0.1'
+__version__ = '0.2'
 
 import re
 import sys
@@ -37,7 +38,12 @@ def get_re_for_format_string(format_string):
 	"""
 	YMDHMS_RE = r'\d\d\d\d-[01]\d-[0-3]\d_[0-2]\d-[0-5]\d-[0-6]\d'
 	YMDN_RE = r'\d\d\d\d-[01]\d-[0-3]\d\.\d+'
-	return re.compile(r'\A' + format_string.replace('{YMDHMS}', YMDHMS_RE).replace('{YMDN}', YMDN_RE) + r'\Z')
+	return re.compile(
+		r'\A' +
+		format_string
+			.replace('{YMDHMS}', YMDHMS_RE)
+			.replace('{YMDN}', YMDN_RE) +
+		r'\Z')
 
 
 def get_tags_on_commit(commit):
@@ -60,7 +66,10 @@ def get_expanded_name(format_string, t):
 		for n in xrange(1, 100000):
 			proposed_ymdn = ymd + '.' + str(n)
 			proposed_tag = get_expanded_name(
-				format_string.format(YMDN=proposed_ymdn, YMDHMS='{YMDHMS}'), t)
+				format_string.format(
+					YMDN=proposed_ymdn,
+					YMDHMS='{YMDHMS}'
+				), t)
 			if not proposed_tag in all_tags:
 				ymdn = proposed_ymdn
 				break
@@ -68,8 +77,8 @@ def get_expanded_name(format_string, t):
 			raise RuntimeError("100,000 tags in one day is too many tags")
 
 	return format_string.format(
-		YMDHMS=t.strftime('%Y-%m-%d_%H-%M-%S'),
-		YMDN=ymdn
+		YMDN=ymdn,
+		YMDHMS=t.strftime('%Y-%m-%d_%H-%M-%S')
 	)
 
 
@@ -93,12 +102,14 @@ def get_reflog_entries(branch_name):
 
 def get_upstream_commit():
 	"""
-	Return the upstream commit that our patches (if we have any) are rebased on top of.
+	Return the upstream commit that our patches (if we have any) are rebased
+	on top of.
 	"""
 	entries = list(reversed(list(get_reflog_entries("HEAD"))))
 
 	for entry in entries:
-		# TODO: add more verification that the rebase finished? (and for the right branch)
+		# TODO: add more verification that the rebase finished?
+		# (and for the right branch)
 		if entry["message"].startswith("checkout: moving from "):
 			return entry["new"]
 
@@ -115,7 +126,8 @@ def get_commit_or_none(branch_name):
 	try:
 		return get_commit(branch_name)
 	except subprocess.CalledProcessError, e:
-		# fatal: ambiguous argument 'some-branch': unknown revision or path not in the working tree.
+		# fatal: ambiguous argument 'some-branch': unknown revision or
+		# path not in the working tree.
 		if not 'returned non-zero exit status 128' in str(e):
 			raise
 		return None
@@ -134,7 +146,8 @@ def main():
 	This allows you to
 
 	1) easily find an older set of rebased patches
-	2) see in tig/gitk which commits you've previously rebased onto.
+	2) see in tig/gitk which commits you've previously rebased onto.  This is
+	   useful for seeing which new commits you might need to review.
 
 	For an of --tag-head, --branch-head, and --tag-upstream, you can use
 	{YMDHMS} to insert the current time, or {YMDN} to insert the current date
@@ -153,39 +166,44 @@ def main():
 	args = parser.parse_args()
 
 	if not (args.tag_head or args.branch_head or args.tag_upstream):
-		print >>sys.stderr, ("Must specify one or more of --tag-head, "
-			"--branch-head, or --tag-upstream; see --help")
+		print >>sys.stderr, "Must specify one or more of --tag-head, " \
+			"--branch-head, or --tag-upstream; see --help"
 		sys.exit(1)
 
 	t = now()
-
-	if args.branch_head:
-		branch_name = get_expanded_name(args.branch_head, t)
-		if get_commit_or_none(branch_name) == get_commit("HEAD"):
-			print >>sys.stderr, "HEAD is already marked as %s; skipping branch -f." % (branch_name,)
-		else:
-			call(["git", "branch", "-f", branch_name])
 
 	if args.tag_head or args.tag_upstream:
 		upstream_commit = get_upstream_commit()
 
 	if args.tag_upstream:
 		existing_tags_on_upstream = get_tags_on_commit(upstream_commit)
-		if any(get_re_for_format_string(args.tag_upstream).match(tag) for tag in existing_tags_on_upstream):
+		if any(get_re_for_format_string(args.tag_upstream).match(tag)
+			 for tag in existing_tags_on_upstream):
 			print >>sys.stderr, "Upstream commit %s already has tags " \
 				"%r; not adding another tag." % (upstream_commit, existing_tags_on_upstream)
 		else:
 			call(["git", "tag", "-a", "--message", "",
-				get_expanded_name(args.tag_upstream, t), upstream_commit])
+				get_expanded_name(args.tag_upstream, t),
+				upstream_commit])
 
 	if args.tag_head:
 		existing_tags_on_head = get_tags_on_commit("HEAD")
-		if any(get_re_for_format_string(args.tag_head).match(tag) for tag in existing_tags_on_head):
+		if any(get_re_for_format_string(args.tag_head).match(tag)
+			 for tag in existing_tags_on_head):
 			print >>sys.stderr, "HEAD already has tags " \
 				"%r; not adding another tag." % (existing_tags_on_head,)
 		else:
-			call(["git", "tag", "-a", "--message", get_tag_message(upstream_commit),
+			call(["git", "tag", "-a", "--message",
+				get_tag_message(upstream_commit),
 				get_expanded_name(args.tag_head, t)])
+
+	if args.branch_head:
+		branch_name = get_expanded_name(args.branch_head, t)
+		if get_commit_or_none(branch_name) == get_commit("HEAD"):
+			print >>sys.stderr, "HEAD is already marked as %s; " \
+				"skipping branch -f." % (branch_name,)
+		else:
+			call(["git", "branch", "-f", branch_name])
 
 
 if __name__ == '__main__':
