@@ -11,7 +11,7 @@ This allows you to
 
 Sample usage:
 git pull --rebase
-tagmyrebase.py --branch-head good --tag-head 'good-{YMDHMS}' --tag-upstream 'U-{YMDHMS}'
+tagmyrebase.py --branch-head good --tag-head 'good-{YMDN}' --tag-upstream 'U-{YMDN}'
 
 All three arguments are optional.
 """
@@ -138,7 +138,8 @@ def main():
 	2) see in tig/gitk which commits you've previously rebased onto.
 
 	For an of --tag-head, --branch-head, and --tag-upstream, you can use
-	{YMDHMS} to insert the current time.
+	{YMDHMS} to insert the current time, or {YMDN} to insert the current date
+	with a counter.
 	""")
 
 	parser.add_argument('-t', '--tag-head', dest='tag_head',
