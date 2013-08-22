@@ -76,8 +76,7 @@ def get_expanded_name(format_string, t):
 def get_tag_message(upstream_commit):
 	# Annotated tag already has tagger name, e-mail, and date
 	# TODO XXX: what if this date doesn't match the date that Python gets?
-	# Should we use a courser-grained tag name that doesn't include the full timestamp?
-	# Or set GIT_COMMITTER_DATE for git tag
+	# Maybe set GIT_COMMITTER_DATE for git tag
 	return "Onto: %s\n" % (upstream_commit,)
 
 
