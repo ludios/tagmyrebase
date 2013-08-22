@@ -31,10 +31,6 @@ import argparse
 import pprint
 
 
-def call(cmd):
-	return subprocess.check_call(cmd)
-
-
 def get_re_for_format_string(format_string):
 	"""
 	Returns a regular expression for a format string, so that we can check
@@ -186,7 +182,7 @@ def main():
 			print >>sys.stderr, "Upstream commit %s already has tags " \
 				"%r; not adding another tag." % (upstream_commit, existing_tags_on_upstream)
 		else:
-			call(["git", "tag", "-a", "--message", "",
+			subprocess.check_call(["git", "tag", "-a", "--message", "",
 				get_expanded_name(args.tag_upstream, t),
 				upstream_commit])
 
@@ -197,7 +193,7 @@ def main():
 			print >>sys.stderr, "HEAD already has tags " \
 				"%r; not adding another tag." % (existing_tags_on_head,)
 		else:
-			call(["git", "tag", "-a", "--message",
+			subprocess.check_call(["git", "tag", "-a", "--message",
 				get_tag_message(upstream_commit),
 				get_expanded_name(args.tag_head, t)])
 
@@ -207,7 +203,7 @@ def main():
 			print >>sys.stderr, "HEAD is already marked as %s; " \
 				"skipping branch -f." % (branch_name,)
 		else:
-			call(["git", "branch", "-f", branch_name])
+			subprocess.check_call(["git", "branch", "-f", branch_name])
 
 
 if __name__ == '__main__':
