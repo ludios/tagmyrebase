@@ -21,7 +21,7 @@ to insert the current time, or {YMDN} to insert the current date with a
 counter that avoids collision with existing tags.
 """
 
-__version__ = '0.2'
+__version__ = '0.2.1'
 
 import re
 import sys
@@ -119,16 +119,16 @@ def get_upstream_commit():
 
 
 def get_commit(branch_name):
-	return subprocess.check_output(["git", "rev-parse", branch_name]).split()[0]
+	return subprocess.check_output(["git", "rev-parse", "--verify", "--quiet", branch_name]).split()[0]
 
 
 def get_commit_or_none(branch_name):
 	try:
 		return get_commit(branch_name)
 	except subprocess.CalledProcessError, e:
-		# fatal: ambiguous argument 'some-branch': unknown revision or
-		# path not in the working tree.
-		if not 'returned non-zero exit status 128' in str(e):
+		# If we pass a branch name that doesn't exist to rev-parse, we
+		# expect to get exit code 1.
+		if not 'returned non-zero exit status 1' in str(e):
 			raise
 		return None
 
