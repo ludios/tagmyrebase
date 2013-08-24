@@ -177,8 +177,8 @@ def main():
 
 	if args.tag_upstream:
 		existing_tags_on_upstream = get_tags_on_commit(upstream_commit, refs)
-		if any(get_re_for_format_string(args.tag_upstream).match(tag)
-			 for tag in existing_tags_on_upstream):
+		if any(get_re_for_format_string(args.tag_upstream).match(tag) \
+			for tag in existing_tags_on_upstream):
 			print >>sys.stderr, "Upstream commit %s already has tags " \
 				"%r; not adding another tag." % (upstream_commit, existing_tags_on_upstream)
 		else:
@@ -188,8 +188,8 @@ def main():
 
 	if args.tag_head:
 		existing_tags_on_head = get_tags_on_commit(refs["HEAD"], refs)
-		if any(get_re_for_format_string(args.tag_head).match(tag)
-			 for tag in existing_tags_on_head):
+		if any(get_re_for_format_string(args.tag_head).match(tag) \
+			for tag in existing_tags_on_head):
 			print >>sys.stderr, "HEAD already has tags " \
 				"%r; not adding another tag." % (existing_tags_on_head,)
 		else:
