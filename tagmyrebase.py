@@ -22,14 +22,13 @@ counter that avoids collision with existing tags.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = '0.3.1'
+__version__ = '0.4'
 
 import re
 import sys
 import datetime
 import subprocess
 import argparse
-import pprint
 
 
 def get_re_for_format_string(format_string):
@@ -120,6 +119,24 @@ def get_upstream_commit():
 	Return the upstream commit that our patches (if we have any) are rebased
 	on top of.
 	"""
+	# TODO: new algo to find upstream commit:
+	# split entry["message"] on first : to get command
+	# split command on " " to get base command
+	# if (command == "pull" and " -r" in command or " --r" in command) or command == "rebase"
+	# # TODO: make sure not overriden by --no-rebase
+	# get upstream commit from previous line
+	# find "rebase finished:" to make sure rebase actually finished
+
+	# find last *successful* rebase; rebase may have been aborted?
+	# (or look for the abort?)
+
+	# TODO: make sure the commit we decide is the upstream commit is actually
+	# a parent of the HEAD commit (or ==?)
+
+	# TODO: Uh, how does this work before the user does this first rebase? I'm guessing it doesn't.
+	# Maybe we want to get the upstream branch from .git/config and find the
+	# first commit that is part of the upstream branch?
+
 	entries = list(reversed(list(get_reflog_entries("HEAD"))))
 
 	for entry in entries:
@@ -128,6 +145,7 @@ def get_upstream_commit():
 		if entry["message"].startswith("checkout: moving from "):
 			return entry["new"]
 
+	import pprint
 	raise RuntimeError(
 		"Could not find upstream commit in reflog; "
 		"entries are:\n%s" % (pprint.pformat(entries),))
