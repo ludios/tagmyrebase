@@ -119,6 +119,11 @@ def get_upstream_commit():
 	Return the upstream commit that our patches (if we have any) are rebased
 	on top of.
 	"""
+	# Why not get the upstream branch from .git/config and use
+	# git rev-list to find the upstream commit, instead of parsing the reflog?
+	# Because (1) git rebase allows rebasing onto arbitrary commits, and
+	# (2) the user might not have set up an upstream branch
+
 	# TODO: new algo to find upstream commit:
 	# split entry["message"] on first : to get command
 	# split command on " " to get base command
