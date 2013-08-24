@@ -12,16 +12,17 @@ This allows you to
 
 Sample usage:
 git pull --rebase
-tagmyrebase.py --branch-head good --tag-head 'good-{YMDN}' --tag-upstream 'U-{YMDN}'
+tagmyrebase.py --tag-upstream 'U-{YMDN}' --tag-head 'good-{YMDN}' --branch-head good
 
 All three arguments are optional.
 
-For any of --tag-head, --branch-head, and --tag-upstream, you can use {YMDHMS}
+For any of --tag-upstream, --tag-head, and --branch-head, you can use {YMDHMS}
 to insert the current time, or {YMDN} to insert the current date with a
-counter that avoids collision with existing tags.
+counter that avoids collision with existing tags.  Note that the {YMDHMS} or
+{YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = '0.3'
+__version__ = '0.3.1'
 
 import re
 import sys
@@ -133,7 +134,8 @@ def get_upstream_commit():
 
 
 def main():
-	parser = argparse.ArgumentParser(description="""
+	parser = argparse.ArgumentParser(
+		description="""
 	Utility to mark the HEAD with a branch and timestamped tag, and the upstream
 	commit (that we're rebased on top of) with another timestamped tag.  All three
 	markings are optional.
@@ -142,21 +144,23 @@ def main():
 
 	1) easily find an older set of rebased patches
 	2) see in tig/gitk which commits you've previously rebased onto.  This is
-	   useful for seeing which new commits you might need to review.
+	   useful for seeing which new commits you might need to review.""",
 
-	For any of --tag-head, --branch-head, and --tag-upstream, you can use
+		epilog="""
+	For any of --tag-upstream, --tag-head, and --branch-head, you can use
 	{YMDHMS} to insert the current time, or {YMDN} to insert the current date
-	with a counter that avoids collision with existing tags.
+	with a counter that avoids collision with existing tags.  Note that the {YMDHMS} or
+	{YMDN} will not necessarily correspond on the HEAD and upstream commits.
 	""")
+
+	parser.add_argument('-u', '--tag-upstream', dest='tag_upstream',
+		help="create a tag with this name pointing to the upstream commit")
 
 	parser.add_argument('-t', '--tag-head', dest='tag_head',
 		help="create a tag with this name pointing to HEAD")
 
 	parser.add_argument('-b', '--branch-head', dest='branch_head',
 		help="force-create a branch with this name pointing to HEAD")
-
-	parser.add_argument('-u', '--tag-upstream', dest='tag_upstream',
-		help="create a tag with this name pointing to the upstream commit")
 
 	args = parser.parse_args()
 
