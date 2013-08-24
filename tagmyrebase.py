@@ -21,7 +21,7 @@ to insert the current time, or {YMDN} to insert the current date with a
 counter that avoids collision with existing tags.
 """
 
-__version__ = '0.2.1'
+__version__ = '0.3'
 
 import re
 import sys
@@ -46,22 +46,35 @@ def get_re_for_format_string(format_string):
 		r'\Z')
 
 
-def get_tags_on_commit(commit):
-	stdout = subprocess.check_output(["git", "tag", "-l", "--points-at", commit])
-	tags = stdout.replace("\r", "").strip("\n").split("\n")
-	return tags
+def get_refs():
+	stdout = subprocess.check_output(["git", "show-ref", "--head", "--dereference"])
+	refs = dict(tags={}, heads={}, HEAD=None)
+	lines = stdout.replace("\r", "").strip("\n").split("\n")
+	DEREF = "^{}"
+	for line in lines:
+		commit, ref = line.split(" ", 1)
+		if ref.startswith("refs/tags/") and ref.endswith(DEREF):
+			# Grab only the dereference lines ending with ^{} because
+			# we only care about the objects the tags point to, not the
+			# tags themselves.
+			refs["tags"][ref.replace("refs/tags/", "", 1)[:-len(DEREF)]] = commit
+		elif ref.startswith("refs/heads/"):
+			refs["heads"][ref.replace("refs/heads/", "", 1)] = commit
+		elif ref == "HEAD":
+			refs["HEAD"] = commit
+		# We don't need remotes
+	return refs
 
 
-def get_all_tags():
-	stdout = subprocess.check_output(["git", "tag", "-l"])
-	tags = stdout.replace("\r", "").strip("\n").split("\n")
-	return tags
+def get_tags_on_commit(commit, refs):
+	TAG_NAME = 0
+	COMMIT_ID = 1
+	return list(tag[TAG_NAME] for tag in refs["tags"].iteritems() if tag[COMMIT_ID] == commit)
 
 
-def get_expanded_name(format_string, t):
+def get_expanded_name(format_string, t, refs):
 	ymdn = None
 	if '{YMDN}' in format_string:
-		all_tags = set(get_all_tags())
 		ymd = t.strftime('%Y-%m-%d')
 		for n in xrange(1, 100000):
 			proposed_ymdn = ymd + '.' + str(n)
@@ -69,8 +82,8 @@ def get_expanded_name(format_string, t):
 				format_string.format(
 					YMDN=proposed_ymdn,
 					YMDHMS='{YMDHMS}'
-				), t)
-			if not proposed_tag in all_tags:
+				), t, refs)
+			if not proposed_tag in refs["tags"]:
 				ymdn = proposed_ymdn
 				break
 		else:
@@ -82,7 +95,7 @@ def get_expanded_name(format_string, t):
 	)
 
 
-def get_tag_message(upstream_commit):
+def make_tag_message(upstream_commit):
 	# Annotated tag already has tagger name, e-mail, and date
 	# TODO XXX: what if this date doesn't match the date that Python gets?
 	# Maybe set GIT_COMMITTER_DATE for git tag
@@ -90,6 +103,7 @@ def get_tag_message(upstream_commit):
 
 
 def get_reflog_entries(branch_name):
+	# show_one_reflog_ent https://github.com/git/git/blob/master/refs.c#L2985
 	for line in open(".git/logs/" + branch_name, "rb"):
 		before_email, after_email = line.split(">", 1)
 		before_email += ">"
@@ -116,21 +130,6 @@ def get_upstream_commit():
 	raise RuntimeError(
 		"Could not find upstream commit in reflog; "
 		"entries are:\n%s" % (pprint.pformat(entries),))
-
-
-def get_commit(branch_name):
-	return subprocess.check_output(["git", "rev-parse", "--verify", "--quiet", branch_name]).split()[0]
-
-
-def get_commit_or_none(branch_name):
-	try:
-		return get_commit(branch_name)
-	except subprocess.CalledProcessError, e:
-		# If we pass a branch name that doesn't exist to rev-parse, we
-		# expect to get exit code 1.
-		if not 'returned non-zero exit status 1' in str(e):
-			raise
-		return None
 
 
 def now():
@@ -171,35 +170,36 @@ def main():
 		sys.exit(1)
 
 	t = now()
+	refs = get_refs()
 
 	if args.tag_head or args.tag_upstream:
 		upstream_commit = get_upstream_commit()
 
 	if args.tag_upstream:
-		existing_tags_on_upstream = get_tags_on_commit(upstream_commit)
+		existing_tags_on_upstream = get_tags_on_commit(upstream_commit, refs)
 		if any(get_re_for_format_string(args.tag_upstream).match(tag)
 			 for tag in existing_tags_on_upstream):
 			print >>sys.stderr, "Upstream commit %s already has tags " \
 				"%r; not adding another tag." % (upstream_commit, existing_tags_on_upstream)
 		else:
 			subprocess.check_call(["git", "tag", "-a", "--message", "",
-				get_expanded_name(args.tag_upstream, t),
+				get_expanded_name(args.tag_upstream, t, refs),
 				upstream_commit])
 
 	if args.tag_head:
-		existing_tags_on_head = get_tags_on_commit("HEAD")
+		existing_tags_on_head = get_tags_on_commit(refs["HEAD"], refs)
 		if any(get_re_for_format_string(args.tag_head).match(tag)
 			 for tag in existing_tags_on_head):
 			print >>sys.stderr, "HEAD already has tags " \
 				"%r; not adding another tag." % (existing_tags_on_head,)
 		else:
 			subprocess.check_call(["git", "tag", "-a", "--message",
-				get_tag_message(upstream_commit),
-				get_expanded_name(args.tag_head, t)])
+				make_tag_message(upstream_commit),
+				get_expanded_name(args.tag_head, t, refs)])
 
 	if args.branch_head:
-		branch_name = get_expanded_name(args.branch_head, t)
-		if get_commit_or_none(branch_name) == get_commit("HEAD"):
+		branch_name = get_expanded_name(args.branch_head, t, refs)
+		if refs["heads"].get(branch_name) == refs["HEAD"]:
 			print >>sys.stderr, "HEAD is already marked as %s; " \
 				"skipping branch -f." % (branch_name,)
 		else:
