@@ -132,10 +132,6 @@ def get_upstream_commit():
 		"entries are:\n%s" % (pprint.pformat(entries),))
 
 
-def now():
-	return datetime.datetime.now()
-
-
 def main():
 	parser = argparse.ArgumentParser(description="""
 	Utility to mark the HEAD with a branch and timestamped tag, and the upstream
@@ -169,7 +165,7 @@ def main():
 			"--branch-head, or --tag-upstream; see --help"
 		sys.exit(1)
 
-	t = now()
+	t = datetime.datetime.now()
 	refs = get_refs()
 
 	if args.tag_head or args.tag_upstream:
