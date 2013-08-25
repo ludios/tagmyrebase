@@ -22,7 +22,7 @@ counter that avoids collision with existing tags.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = '0.4'
+__version__ = '0.4.1'
 
 import re
 import sys
@@ -85,7 +85,8 @@ def get_refs():
 
 
 def get_names_on_commit(commit, type, refs):
-	assert type in ("tags", "heads"), type
+	if type not in ("tags", "heads"):
+		raise ValueError("type must be 'tags' or heads'")
 	NAME = 0
 	COMMIT_ID = 1
 	return list(t[NAME] for t in refs[type].iteritems() if t[COMMIT_ID] == commit)
@@ -129,7 +130,8 @@ def get_reflog_entries(branch_name):
 		old, new, email = before_email.split(" ", 2)
 		_, date, tz = after_email.split("\t", 1)[0].split(" ", 2)
 		message = after_email.split("\t", 1)[1]
-		assert _ == "", repr(_)
+		if _ != "":
+			raise RuntimeError("Corrupt reflog? line was %r" % (line,))
 		yield dict(old=old, new=new, email=email, date=date, tz=tz, message=message)
 
 
