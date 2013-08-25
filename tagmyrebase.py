@@ -84,12 +84,10 @@ def get_refs():
 	return refs
 
 
-def get_names_on_commit(commit, type, refs):
-	if type not in ("tags", "heads"):
-		raise ValueError("type must be 'tags' or heads'")
-	NAME = 0
-	COMMIT_ID = 1
-	return list(t[NAME] for t in refs[type].iteritems() if t[COMMIT_ID] == commit)
+def get_keys_for_value(d, value):
+	KEY = 0
+	VALUE = 1
+	return list(t[KEY] for t in d.iteritems() if t[VALUE] == value)
 
 
 def get_expanded_name(format_string, t, refs):
@@ -173,7 +171,7 @@ def get_upstream_commit(refs):
 	# I'm guessing it doesn't.  Maybe we want to get the upstream branch
 	# from .git/config and find the first commit that is part of the upstream branch?
 
-	heads = get_names_on_commit(refs["HEAD"], "heads", refs)
+	heads = get_keys_for_value(refs["heads"], refs["HEAD"])
 	# More than one head may match our current commit, but not all reflogs
 	# will have the rebase information we're looking for.  (e.g. new branch created
 	# from another branch will have just "branch: Created from HEAD" in the reflog.)
@@ -241,7 +239,7 @@ def main():
 		upstream_commit = get_upstream_commit(refs)
 
 	if args.tag_upstream:
-		existing_tags_on_upstream = get_names_on_commit(upstream_commit, "tags", refs)
+		existing_tags_on_upstream = get_keys_for_value(refs["tags"], upstream_commit)
 		if any(get_re_for_format_string(args.tag_upstream).match(tag) \
 			for tag in existing_tags_on_upstream):
 			print "Already tagged with %r: %s %s" % (
@@ -258,7 +256,7 @@ def main():
 				get_commit_message(upstream_commit))
 
 	if args.tag_head:
-		existing_tags_on_head = get_names_on_commit(refs["HEAD"], "tags", refs)
+		existing_tags_on_head = get_keys_for_value(refs["tags"], refs["HEAD"])
 		if any(get_re_for_format_string(args.tag_head).match(tag) \
 			for tag in existing_tags_on_head):
 			print "Already tagged with %r: %s %s" % (
