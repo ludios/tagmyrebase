@@ -158,6 +158,11 @@ def get_upstream_commit(refs):
 	# will have the rebase information we're looking for.  (e.g. new branch created
 	# from another branch will have just "branch: Created from HEAD" in the reflog.)
 
+	# TODO: maybe parse *all* of the reflogs, since any of them could contain
+	# the rebase we're looking for (look at the old, new columns)?  That would help
+	# in this case: rebase on master, checkout -b another, switch to master,
+	# rebase again, checkout another, tagmyrebase.
+
 	if not heads:
 		raise UnknownUpstream("HEAD is not on any branches;"
 			"we need a branch to read a reflog in .git/logs/refs/heads/")
