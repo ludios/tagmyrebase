@@ -66,10 +66,11 @@ def get_refs():
 	return refs
 
 
-def get_tags_on_commit(commit, refs):
-	TAG_NAME = 0
+def get_names_on_commit(commit, type, refs):
+	assert type in ("tags", "heads"), type
+	NAME = 0
 	COMMIT_ID = 1
-	return list(tag[TAG_NAME] for tag in refs["tags"].iteritems() if tag[COMMIT_ID] == commit)
+	return list(t[NAME] for t in refs[type].iteritems() if t[COMMIT_ID] == commit)
 
 
 def get_expanded_name(format_string, t, refs):
@@ -104,7 +105,7 @@ def make_tag_message(upstream_commit):
 
 def get_reflog_entries(branch_name):
 	# show_one_reflog_ent https://github.com/git/git/blob/master/refs.c#L2985
-	for line in open(".git/logs/" + branch_name, "rb"):
+	for line in open(".git/logs/refs/heads/" + branch_name, "rb"):
 		before_email, after_email = line.split(">", 1)
 		before_email += ">"
 		old, new, email = before_email.split(" ", 2)
@@ -114,7 +115,28 @@ def get_reflog_entries(branch_name):
 		yield dict(old=old, new=new, email=email, date=date, tz=tz, message=message)
 
 
-def get_upstream_commit():
+def get_last_rebase_onto(branch_name):
+	entries = list(reversed(list(get_reflog_entries(branch_name))))
+
+	for entry in entries:
+		if entry["message"].startswith("rebase finished: refs/heads/%s onto " % (branch_name,)):
+			return entry["message"].split()[-1]
+
+	return None
+
+
+class UnknownUpstream(Exception):
+	pass
+
+
+def all_equal(l):
+	s = sorted(l)
+	if s[0] == s[-1]:
+		return True
+	return False
+
+
+def get_upstream_commit(refs):
 	"""
 	Return the upstream commit that our patches (if we have any) are rebased
 	on top of.
@@ -124,36 +146,31 @@ def get_upstream_commit():
 	# Because (1) git rebase allows rebasing onto arbitrary commits, and
 	# (2) the user might not have set up an upstream branch
 
-	# TODO: new algo to find upstream commit:
-	# split entry["message"] on first : to get command
-	# split command on " " to get base command
-	# if (command == "pull" and " -r" in command or " --r" in command) or command == "rebase"
-	# # TODO: make sure not overriden by --no-rebase
-	# get upstream commit from previous line
-	# find "rebase finished:" to make sure rebase actually finished
-
-	# find last *successful* rebase; rebase may have been aborted?
-	# (or look for the abort?)
-
 	# TODO: make sure the commit we decide is the upstream commit is actually
 	# a parent of the HEAD commit (or ==?)
 
-	# TODO: Uh, how does this work before the user does this first rebase? I'm guessing it doesn't.
-	# Maybe we want to get the upstream branch from .git/config and find the
-	# first commit that is part of the upstream branch?
+	# TODO: Uh, how does this work before the user does this first rebase?
+	# I'm guessing it doesn't.  Maybe we want to get the upstream branch
+	# from .git/config and find the first commit that is part of the upstream branch?
 
-	entries = list(reversed(list(get_reflog_entries("HEAD"))))
+	heads = get_names_on_commit(refs["HEAD"], "heads", refs)
+	# More than one head may match our current commit, but not all reflogs
+	# will have the rebase information we're looking for.  (e.g. new branch created
+	# from another branch will have just "branch: Created from HEAD" in the reflog.)
 
-	for entry in entries:
-		# TODO: add more verification that the rebase finished?
-		# (and for the right branch)
-		if entry["message"].startswith("checkout: moving from "):
-			return entry["new"]
+	if not heads:
+		raise UnknownUpstream("HEAD is not on any branches;"
+			"we need a branch to read a reflog in .git/logs/refs/heads/")
 
-	import pprint
-	raise RuntimeError(
-		"Could not find upstream commit in reflog; "
-		"entries are:\n%s" % (pprint.pformat(entries),))
+	upstreams = filter(lambda u: u is not None, map(get_last_rebase_onto, heads))
+	if not upstreams:
+		raise UnknownUpstream("Could not find a rebase in reflogs for %r" % (heads,))
+
+	if not all_equal(upstreams):
+		raise UnknownUpstream("rebases in reflogs for %r point to "
+			"different upstream commits: %r" % (heads, upstreams))
+
+	return upstreams[0]
 
 
 def main():
@@ -196,10 +213,10 @@ def main():
 	refs = get_refs()
 
 	if args.tag_head or args.tag_upstream:
-		upstream_commit = get_upstream_commit()
+		upstream_commit = get_upstream_commit(refs)
 
 	if args.tag_upstream:
-		existing_tags_on_upstream = get_tags_on_commit(upstream_commit, refs)
+		existing_tags_on_upstream = get_names_on_commit(upstream_commit, "tags", refs)
 		if any(get_re_for_format_string(args.tag_upstream).match(tag) \
 			for tag in existing_tags_on_upstream):
 			print >>sys.stderr, "Upstream commit %s already has tags " \
@@ -210,7 +227,7 @@ def main():
 				upstream_commit])
 
 	if args.tag_head:
-		existing_tags_on_head = get_tags_on_commit(refs["HEAD"], refs)
+		existing_tags_on_head = get_names_on_commit(refs["HEAD"], "tags", refs)
 		if any(get_re_for_format_string(args.tag_head).match(tag) \
 			for tag in existing_tags_on_head):
 			print >>sys.stderr, "HEAD already has tags " \
