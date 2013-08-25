@@ -46,6 +46,24 @@ def get_re_for_format_string(format_string):
 		r'\Z')
 
 
+def memoize(f):
+	class memodict(dict):
+		def __missing__(self, key):
+			ret = self[key] = f(key)
+			return ret
+	return memodict().__getitem__
+
+
+@memoize
+def get_commit_message(commit):
+	_, message = subprocess.check_output(
+		["git",  "log", "--format=oneline", "--max-count=1", commit]).split(" ", 1)
+	message = message.rstrip("\r\n")
+	if _ != commit:
+		raise RuntimeError("git log returned the wrong commit: %r %r" % (_, message))
+	return message
+
+
 def get_refs():
 	stdout = subprocess.check_output(["git", "show-ref", "--head", "--dereference"])
 	refs = dict(tags={}, heads={}, HEAD=None)
@@ -224,31 +242,50 @@ def main():
 		existing_tags_on_upstream = get_names_on_commit(upstream_commit, "tags", refs)
 		if any(get_re_for_format_string(args.tag_upstream).match(tag) \
 			for tag in existing_tags_on_upstream):
-			print >>sys.stderr, "Upstream commit %s already has tags " \
-				"%r; not adding another tag." % (upstream_commit, existing_tags_on_upstream)
+			print "Already tagged with %r: %s %s" % (
+				existing_tags_on_upstream,
+				upstream_commit,
+				get_commit_message(upstream_commit))
 		else:
+			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, refs)
 			subprocess.check_call(["git", "tag", "-a", "--message", "",
-				get_expanded_name(args.tag_upstream, t, refs),
-				upstream_commit])
+				expanded_tag_upstream, upstream_commit])
+			print "Created: %s -> %s %s" % (
+				expanded_tag_upstream,
+				upstream_commit,
+				get_commit_message(upstream_commit))
 
 	if args.tag_head:
 		existing_tags_on_head = get_names_on_commit(refs["HEAD"], "tags", refs)
 		if any(get_re_for_format_string(args.tag_head).match(tag) \
 			for tag in existing_tags_on_head):
-			print >>sys.stderr, "HEAD already has tags " \
-				"%r; not adding another tag." % (existing_tags_on_head,)
+			print "Already tagged with %r: %s %s" % (
+				existing_tags_on_head,
+				refs["HEAD"],
+				get_commit_message(refs["HEAD"]))
 		else:
+			expanded_tag_head = get_expanded_name(args.tag_head, t, refs)
 			subprocess.check_call(["git", "tag", "-a", "--message",
 				make_tag_message(upstream_commit),
-				get_expanded_name(args.tag_head, t, refs)])
+				expanded_tag_head])
+			print "Created: %s -> %s %s" % (
+				expanded_tag_head,
+				refs["HEAD"],
+				get_commit_message(refs["HEAD"]))
 
 	if args.branch_head:
 		branch_name = get_expanded_name(args.branch_head, t, refs)
 		if refs["heads"].get(branch_name) == refs["HEAD"]:
-			print >>sys.stderr, "HEAD is already marked as %s; " \
-				"skipping branch -f." % (branch_name,)
+			print "Already branched as %s: %s %s" % (
+				branch_name,
+				refs["HEAD"],
+				get_commit_message(refs["HEAD"]))
 		else:
 			subprocess.check_call(["git", "branch", "-f", branch_name])
+			print "Created: %s -> %s %s" % (
+				branch_name,
+				refs["HEAD"],
+				get_commit_message(refs["HEAD"]))
 
 
 if __name__ == '__main__':
