@@ -22,7 +22,7 @@ counter that avoids collision with existing tags.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = '0.6.2'
+__version__ = '0.6.3'
 
 import re
 import sys
@@ -298,8 +298,8 @@ def main():
 			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, refs)
 			subprocess.check_call([git_exe, "tag", "--annotate", "--message", "",
 				expanded_tag_upstream, upstream_commit])
-			prefixes.append("Created: %s ->" % (expanded_tag_upstream,))
-			print "Created: %s ->%s %s %s" % (
+			prefixes.append("Created: %s" % (expanded_tag_upstream,))
+			print "Created: %s %s-> %s %s" % (
 				expanded_tag_upstream,
 				padding(),
 				upstream_commit,
@@ -321,8 +321,8 @@ def main():
 			subprocess.check_call([git_exe, "tag", "--annotate", "--message",
 				make_tag_message(upstream_commit),
 				expanded_tag_head])
-			prefixes.append("Created: %s ->" % (expanded_tag_head,))
-			print "Created: %s ->%s %s %s" % (
+			prefixes.append("Created: %s" % (expanded_tag_head,))
+			print "Created: %s %s-> %s %s" % (
 				expanded_tag_head,
 				padding(),
 				refs["HEAD"],
@@ -339,8 +339,8 @@ def main():
 				get_commit_message(git_exe, refs["HEAD"]))
 		else:
 			subprocess.check_call([git_exe, "branch", "-f", branch_name])
-			prefixes.append("Created: %s ->" % (branch_name,))
-			print "Created: %s ->%s %s %s" % (
+			prefixes.append("Created: %s" % (branch_name,))
+			print "Created: %s %s-> %s %s" % (
 				branch_name,
 				padding(),
 				refs["HEAD"],
