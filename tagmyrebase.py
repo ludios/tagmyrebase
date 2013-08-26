@@ -68,7 +68,7 @@ def get_commit_message(commit):
 
 def get_refs():
 	stdout = subprocess.check_output(["git", "show-ref", "--head", "--dereference"])
-	refs = dict(tags={}, heads={}, remotes=defaultdict(dict), HEAD=None)
+	refs = dict(tags={}, heads={}, HEAD=None)
 	lines = stdout.replace("\r", "").strip("\n").split("\n")
 	DEREF = "^{}"
 	for line in lines:
@@ -80,12 +80,9 @@ def get_refs():
 			refs["tags"][ref.replace("refs/tags/", "", 1)[:-len(DEREF)]] = commit
 		elif ref.startswith("refs/heads/"):
 			refs["heads"][ref.replace("refs/heads/", "", 1)] = commit
-		elif ref.startswith("refs/remotes/"):
-			remote, branch = ref.replace("refs/remotes/", "", 1).split("/", 1)
-			refs["remotes"][remote][branch] = commit
 		elif ref == "HEAD":
 			refs["HEAD"] = commit
-	refs["remotes"] = dict(refs["remotes"])
+		# We don't need remotes
 	return refs
 
 
