@@ -22,7 +22,7 @@ counter that avoids collision with existing tags.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = '0.6.3'
+__version__ = '0.6.4'
 
 import re
 import sys
@@ -282,6 +282,8 @@ def main():
 	if args.tag_head:
 		existing_tags_on_head = get_keys_for_value(refs["tags"], refs["HEAD"])
 		prefixes.append("Already tagged with %r:" % (existing_tags_on_head,))
+		expanded_tag_head = get_expanded_name(args.tag_head, t, refs)
+		prefixes.append("Created: %s" % (expanded_tag_head,))
 
 	if args.tag_upstream:
 		existing_tags_on_upstream = get_keys_for_value(refs["tags"], upstream_commit)
