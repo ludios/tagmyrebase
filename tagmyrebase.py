@@ -22,13 +22,15 @@ counter that avoids collision with existing tags.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = '0.4.1'
+__version__ = '0.5'
 
 import re
 import sys
 import datetime
 import subprocess
 import argparse
+
+from collections import defaultdict
 
 
 def get_re_for_format_string(format_string):
@@ -66,7 +68,7 @@ def get_commit_message(commit):
 
 def get_refs():
 	stdout = subprocess.check_output(["git", "show-ref", "--head", "--dereference"])
-	refs = dict(tags={}, heads={}, HEAD=None)
+	refs = dict(tags={}, heads={}, remotes=defaultdict(dict), HEAD=None)
 	lines = stdout.replace("\r", "").strip("\n").split("\n")
 	DEREF = "^{}"
 	for line in lines:
@@ -78,9 +80,12 @@ def get_refs():
 			refs["tags"][ref.replace("refs/tags/", "", 1)[:-len(DEREF)]] = commit
 		elif ref.startswith("refs/heads/"):
 			refs["heads"][ref.replace("refs/heads/", "", 1)] = commit
+		elif ref.startswith("refs/remotes/"):
+			remote, branch = ref.replace("refs/remotes/", "", 1).split("/", 1)
+			refs["remotes"][remote][branch] = commit
 		elif ref == "HEAD":
 			refs["HEAD"] = commit
-		# We don't need remotes
+	refs["remotes"] = dict(refs["remotes"])
 	return refs
 
 
@@ -154,23 +159,7 @@ def all_equal(l):
 	return False
 
 
-def get_upstream_commit(refs):
-	"""
-	Return the upstream commit that our patches (if we have any) are rebased
-	on top of.
-	"""
-	# Why not get the upstream branch from .git/config and use
-	# git rev-list to find the upstream commit, instead of parsing the reflog?
-	# Because (1) git rebase allows rebasing onto arbitrary commits, and
-	# (2) the user might not have set up an upstream branch
-
-	# TODO: make sure the commit we decide is the upstream commit is actually
-	# a parent of the HEAD commit (or ==?)
-
-	# TODO: Uh, how does this work before the user does this first rebase?
-	# I'm guessing it doesn't.  Maybe we want to get the upstream branch
-	# from .git/config and find the first commit that is part of the upstream branch?
-
+def get_upstream_commit_from_reflog(refs):
 	heads = get_keys_for_value(refs["heads"], refs["HEAD"])
 	# More than one head may match our current commit, but not all reflogs
 	# will have the rebase information we're looking for.  (e.g. new branch created
@@ -194,6 +183,34 @@ def get_upstream_commit(refs):
 			"different upstream commits: %r" % (heads, upstreams))
 
 	return upstreams[0]
+
+
+def get_upstream_commit_from_config(refs):
+	# interpret_branch_name https://github.com/git/git/blob/master/sha1_name.c#L1037
+	try:
+		return subprocess.check_output([
+			"git", "rev-parse", "--revs-only", "@{upstream}"]).rstrip("\r\n")
+	except subprocess.CalledProcessError, e:
+		raise UnknownUpstream("%s" % (e,))
+
+
+def get_upstream_commit(refs):
+	"""
+	Return the upstream commit that our patches (if we have any) are rebased
+	on top of.
+
+	Why do we first try to get the upstream commit from the reflog instead of
+	just guessing based on the upstream branch set in .git/config?  Because
+	(1) git rebase allows rebasing onto arbitrary commits, and the user may have done this
+	(2) the user might not have set up an upstream branch yet
+	"""
+	try:
+		return get_upstream_commit_from_reflog(refs), "reflog"
+	except UnknownUpstream:
+		return get_upstream_commit_from_config(refs), "config"
+
+	# TODO: make sure the commit we decide is the upstream commit is actually
+	# a parent of the HEAD commit (or ==?)
 
 
 def main():
@@ -236,7 +253,13 @@ def main():
 	refs = get_refs()
 
 	if args.tag_head or args.tag_upstream:
-		upstream_commit = get_upstream_commit(refs)
+		try:
+			upstream_commit, source = get_upstream_commit(refs)
+		except UnknownUpstream:
+			print >>sys.stderr, "Could not determine the upstream commit " \
+				"because this branch has never been rebased, nor is it " \
+				"configured to merge with a branch (git branch --set-upstream)"
+			sys.exit(2)
 
 	if args.tag_upstream:
 		existing_tags_on_upstream = get_keys_for_value(refs["tags"], upstream_commit)
