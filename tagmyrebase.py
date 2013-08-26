@@ -22,7 +22,7 @@ counter that avoids collision with existing tags.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = '0.5'
+__version__ = '0.5.1'
 
 import re
 import sys
@@ -64,6 +64,10 @@ def get_commit_message(commit):
 	if _ != commit:
 		raise RuntimeError("git log returned the wrong commit: %r %r" % (_, message))
 	return message
+
+
+def get_current_branch():
+	return subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).rstrip("\r\n")
 
 
 def get_refs():
@@ -185,10 +189,16 @@ def get_upstream_commit_from_reflog(refs):
 def get_upstream_commit_from_config(refs):
 	# interpret_branch_name https://github.com/git/git/blob/master/sha1_name.c#L1037
 	try:
-		return subprocess.check_output([
+		commit = subprocess.check_output([
 			"git", "rev-parse", "--revs-only", "@{upstream}"]).rstrip("\r\n")
+		# If there's no @{upstream} and we used --revs-only, exit code is 0,
+		# so we have to raise an exception ourselves.
+		if commit == "":
+			raise UnknownUpstream("No upstream configured for branch")
 	except subprocess.CalledProcessError, e:
 		raise UnknownUpstream("%s" % (e,))
+
+	return commit
 
 
 def get_upstream_commit(refs):
@@ -253,9 +263,13 @@ def main():
 		try:
 			upstream_commit, source = get_upstream_commit(refs)
 		except UnknownUpstream:
+			# TODO: just use "my-branch" if this fails
+			current_branch = get_current_branch()
 			print >>sys.stderr, "Could not determine the upstream commit " \
 				"because this branch has never been rebased, nor is it " \
-				"configured to merge with a branch (git branch --set-upstream)"
+				"configured to merge with a branch.  You probably want do something like:\n\n" \
+				"git branch --set-upstream %s origin/master\n" \
+				"git config branch.%s.rebase true" % (current_branch, current_branch)
 			sys.exit(2)
 
 	if args.tag_upstream:
@@ -268,7 +282,7 @@ def main():
 				get_commit_message(upstream_commit))
 		else:
 			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, refs)
-			subprocess.check_call(["git", "tag", "-a", "--message", "",
+			subprocess.check_call(["git", "tag", "--annotate", "--message", "",
 				expanded_tag_upstream, upstream_commit])
 			print "Created: %s -> %s %s" % (
 				expanded_tag_upstream,
@@ -285,7 +299,7 @@ def main():
 				get_commit_message(refs["HEAD"]))
 		else:
 			expanded_tag_head = get_expanded_name(args.tag_head, t, refs)
-			subprocess.check_call(["git", "tag", "-a", "--message",
+			subprocess.check_call(["git", "tag", "--annotate", "--message",
 				make_tag_message(upstream_commit),
 				expanded_tag_head])
 			print "Created: %s -> %s %s" % (
