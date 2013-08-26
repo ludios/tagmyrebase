@@ -22,7 +22,7 @@ counter that avoids collision with existing tags.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = '0.6'
+__version__ = '0.6.1'
 
 import re
 import sys
@@ -272,20 +272,32 @@ def main():
 				"git config branch.%s.rebase true" % (current_branch, current_branch)
 			sys.exit(2)
 
+	# For visual alignment purposes.  We want the git commit IDs and
+	# messages to line up.
+	prefixes = []
+	def padding():
+		latest_prefix = prefixes[-1]
+		return " " * max(0, len(sorted(prefixes, key=len)[-1]) - len(latest_prefix))
+
 	if args.tag_upstream:
 		existing_tags_on_upstream = get_keys_for_value(refs["tags"], upstream_commit)
 		if any(get_re_for_format_string(args.tag_upstream).match(tag) \
 			for tag in existing_tags_on_upstream):
-			print "Already tagged with %r: %s %s" % (
+			prefixes.append("Already tagged with %r:" % (
+				existing_tags_on_upstream,))
+			print "Already tagged with %r:%s %s %s" % (
 				existing_tags_on_upstream,
+				padding(),
 				upstream_commit,
 				get_commit_message(git_exe, upstream_commit))
 		else:
 			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, refs)
 			subprocess.check_call([git_exe, "tag", "--annotate", "--message", "",
 				expanded_tag_upstream, upstream_commit])
-			print "Created: %s -> %s %s" % (
+			prefixes.append("Created: %s ->" % (expanded_tag_upstream,))
+			print "Created: %s ->%s %s %s" % (
 				expanded_tag_upstream,
+				padding(),
 				upstream_commit,
 				get_commit_message(git_exe, upstream_commit))
 
@@ -293,8 +305,11 @@ def main():
 		existing_tags_on_head = get_keys_for_value(refs["tags"], refs["HEAD"])
 		if any(get_re_for_format_string(args.tag_head).match(tag) \
 			for tag in existing_tags_on_head):
-			print "Already tagged with %r: %s %s" % (
+			prefixes.append("Already tagged with %r:" % (
+				existing_tags_on_head,))
+			print "Already tagged with %r:%s %s %s" % (
 				existing_tags_on_head,
+				padding(),
 				refs["HEAD"],
 				get_commit_message(git_exe, refs["HEAD"]))
 		else:
@@ -302,22 +317,28 @@ def main():
 			subprocess.check_call([git_exe, "tag", "--annotate", "--message",
 				make_tag_message(upstream_commit),
 				expanded_tag_head])
-			print "Created: %s -> %s %s" % (
+			prefixes.append("Created: %s ->" % (expanded_tag_head,))
+			print "Created: %s ->%s %s %s" % (
 				expanded_tag_head,
+				padding(),
 				refs["HEAD"],
 				get_commit_message(git_exe, refs["HEAD"]))
 
 	if args.branch_head:
 		branch_name = get_expanded_name(args.branch_head, t, refs)
 		if refs["heads"].get(branch_name) == refs["HEAD"]:
-			print "Already branched as %s: %s %s" % (
+			prefixes.append("Already branched as %s:" % (branch_name,))
+			print "Already branched as %s:%s %s %s" % (
 				branch_name,
+				padding(),
 				refs["HEAD"],
 				get_commit_message(git_exe, refs["HEAD"]))
 		else:
 			subprocess.check_call([git_exe, "branch", "-f", branch_name])
-			print "Created: %s -> %s %s" % (
+			prefixes.append("Created: %s ->" % (branch_name,))
+			print "Created: %s ->%s %s %s" % (
 				branch_name,
+				padding(),
 				refs["HEAD"],
 				get_commit_message(git_exe, refs["HEAD"]))
 
