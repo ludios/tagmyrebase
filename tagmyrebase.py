@@ -272,8 +272,7 @@ def main():
 				"git config branch.%s.rebase true" % (current_branch, current_branch)
 			sys.exit(2)
 
-	# For visual alignment purposes.  We want the git commit IDs and
-	# messages to line up.
+	# For making the git commits line up visually.
 	prefixes = []
 	def padding():
 		latest_prefix = prefixes[-1]
