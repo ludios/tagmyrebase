@@ -22,7 +22,7 @@ counter that avoids collision with existing tags.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = '0.6.4'
+__version__ = '0.6.5'
 
 import re
 import sys
@@ -50,14 +50,11 @@ def get_re_for_format_string(format_string):
 
 _message_cache = {}
 
-def get_commit_message(git_exe, commit):
+def get_commit_with_message(git_exe, commit):
 	if commit in _message_cache:
 		return _message_cache[commit]
-	_, message = subprocess.check_output(
-		[git_exe,  "log", "--format=oneline", "--max-count=1", commit]).split(" ", 1)
-	message = message.rstrip("\r\n")
-	if _ != commit:
-		raise RuntimeError("git log returned the wrong commit: %r %r" % (_, message))
+	message = subprocess.check_output(
+		[git_exe,  "log", "--format=oneline", "--max-count=1", commit]).rstrip("\r\n")
 	_message_cache[commit] = message
 	return message
 
@@ -216,6 +213,75 @@ def get_upstream_commit(git_exe, refs):
 	# a parent of the HEAD commit (or ==?)
 
 
+def pprint_table(out, table):
+	col_paddings = list(max(map(len, cols)) for cols in zip(*table))
+
+	for row in table:
+		for n, text in enumerate(row):
+			col = text.ljust(col_paddings[n])
+			print >>out, col,
+		print >>out
+
+
+def mark_commits(args):
+	t = datetime.datetime.now()
+	git_exe = args.git_exe
+	refs = get_refs(git_exe)
+
+	if args.tag_head or args.tag_upstream:
+		try:
+			upstream_commit, source = get_upstream_commit(git_exe, refs)
+		except UnknownUpstream:
+			# TODO: just use "my-branch" if this fails
+			current_branch = get_current_branch(git_exe)
+			print >>sys.stderr, "Could not determine the upstream commit " \
+				"because this branch has never been rebased, nor is it " \
+				"configured to merge with a branch.  You probably want do something like:\n\n" \
+				"git branch --set-upstream %s origin/master\n" \
+				"git config branch.%s.rebase true" % (current_branch, current_branch)
+			sys.exit(2)
+
+	def with_message(commit):
+		return get_commit_with_message(git_exe, commit)
+
+	if args.tag_upstream:
+		existing_tags_on_upstream = get_keys_for_value(refs["tags"], upstream_commit)
+		if any(get_re_for_format_string(args.tag_upstream).match(tag) \
+			for tag in existing_tags_on_upstream):
+			yield ("Already tagged with %r:" % (existing_tags_on_upstream,), "",
+				with_message(upstream_commit))
+		else:
+			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, refs)
+			subprocess.check_call([git_exe, "tag", "--annotate", "--message", "",
+				expanded_tag_upstream, upstream_commit])
+			yield ("Created: %s" % (expanded_tag_upstream,), "->",
+				with_message(upstream_commit))
+
+	if args.tag_head:
+		existing_tags_on_head = get_keys_for_value(refs["tags"], refs["HEAD"])
+		if any(get_re_for_format_string(args.tag_head).match(tag) \
+			for tag in existing_tags_on_head):
+			yield ("Already tagged with %r:" % (existing_tags_on_head,), "",
+				with_message(refs["HEAD"]))
+		else:
+			expanded_tag_head = get_expanded_name(args.tag_head, t, refs)
+			subprocess.check_call([git_exe, "tag", "--annotate", "--message",
+				make_tag_message(upstream_commit),
+				expanded_tag_head])
+			yield ("Created: %s" % (expanded_tag_head,), "->",
+				with_message(refs["HEAD"]))
+
+	if args.branch_head:
+		branch_name = get_expanded_name(args.branch_head, t, refs)
+		if refs["heads"].get(branch_name) == refs["HEAD"]:
+			yield ("Already branched as %s:" % (branch_name,), "",
+				with_message(refs["HEAD"]))
+		else:
+			subprocess.check_call([git_exe, "branch", "-f", branch_name])
+			yield ("Created: %s" % (branch_name,), "->",
+				with_message(refs["HEAD"]))
+
+
 def main():
 	parser = argparse.ArgumentParser(
 		description="""
@@ -237,116 +303,30 @@ def main():
 	""")
 
 	parser.add_argument('-u', '--tag-upstream', dest='tag_upstream',
-		help="create a tag with this name pointing to the upstream commit")
+				  help="create a tag with this name pointing to the upstream commit")
 
 	parser.add_argument('-t', '--tag-head', dest='tag_head',
-		help="create a tag with this name pointing to HEAD")
+				  help="create a tag with this name pointing to HEAD")
 
 	parser.add_argument('-b', '--branch-head', dest='branch_head',
-		help="force-create a branch with this name pointing to HEAD")
+				  help="force-create a branch with this name pointing to HEAD")
 
 	parser.add_argument('-g', '--git', dest='git_exe', default='git',
-		help="path to git executable, default 'git'")
+				  help="path to git executable, default 'git'")
 
 	args = parser.parse_args()
 
 	if not (args.tag_head or args.branch_head or args.tag_upstream):
 		print >>sys.stderr, "Must specify one or more of --tag-head, " \
-			"--branch-head, or --tag-upstream; see --help"
+					  "--branch-head, or --tag-upstream; see --help"
 		sys.exit(1)
 
-	t = datetime.datetime.now()
-	git_exe = args.git_exe
-	refs = get_refs(git_exe)
-
-	if args.tag_head or args.tag_upstream:
-		try:
-			upstream_commit, source = get_upstream_commit(git_exe, refs)
-		except UnknownUpstream:
-			# TODO: just use "my-branch" if this fails
-			current_branch = get_current_branch(git_exe)
-			print >>sys.stderr, "Could not determine the upstream commit " \
-				"because this branch has never been rebased, nor is it " \
-				"configured to merge with a branch.  You probably want do something like:\n\n" \
-				"git branch --set-upstream %s origin/master\n" \
-				"git config branch.%s.rebase true" % (current_branch, current_branch)
-			sys.exit(2)
-
-	# For making the git commits line up visually.
-	prefixes = []
-	def padding():
-		latest_prefix = prefixes[-1]
-		return " " * max(0, len(sorted(prefixes, key=len)[-1]) - len(latest_prefix))
-
-	# Get HEAD tags early just for visual alignment
-	if args.tag_head:
-		existing_tags_on_head = get_keys_for_value(refs["tags"], refs["HEAD"])
-		prefixes.append("Already tagged with %r:" % (existing_tags_on_head,))
-		expanded_tag_head = get_expanded_name(args.tag_head, t, refs)
-		prefixes.append("Created: %s" % (expanded_tag_head,))
-
-	if args.tag_upstream:
-		existing_tags_on_upstream = get_keys_for_value(refs["tags"], upstream_commit)
-		if any(get_re_for_format_string(args.tag_upstream).match(tag) \
-			for tag in existing_tags_on_upstream):
-			prefixes.append("Already tagged with %r:" % (
-				existing_tags_on_upstream,))
-			print "Already tagged with %r:%s %s %s" % (
-				existing_tags_on_upstream,
-				padding(),
-				upstream_commit,
-				get_commit_message(git_exe, upstream_commit))
-		else:
-			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, refs)
-			subprocess.check_call([git_exe, "tag", "--annotate", "--message", "",
-				expanded_tag_upstream, upstream_commit])
-			prefixes.append("Created: %s" % (expanded_tag_upstream,))
-			print "Created: %s %s-> %s %s" % (
-				expanded_tag_upstream,
-				padding(),
-				upstream_commit,
-				get_commit_message(git_exe, upstream_commit))
-
-	if args.tag_head:
-		existing_tags_on_head = get_keys_for_value(refs["tags"], refs["HEAD"])
-		if any(get_re_for_format_string(args.tag_head).match(tag) \
-			for tag in existing_tags_on_head):
-			prefixes.append("Already tagged with %r:" % (
-				existing_tags_on_head,))
-			print "Already tagged with %r:%s %s %s" % (
-				existing_tags_on_head,
-				padding(),
-				refs["HEAD"],
-				get_commit_message(git_exe, refs["HEAD"]))
-		else:
-			expanded_tag_head = get_expanded_name(args.tag_head, t, refs)
-			subprocess.check_call([git_exe, "tag", "--annotate", "--message",
-				make_tag_message(upstream_commit),
-				expanded_tag_head])
-			prefixes.append("Created: %s" % (expanded_tag_head,))
-			print "Created: %s %s-> %s %s" % (
-				expanded_tag_head,
-				padding(),
-				refs["HEAD"],
-				get_commit_message(git_exe, refs["HEAD"]))
-
-	if args.branch_head:
-		branch_name = get_expanded_name(args.branch_head, t, refs)
-		if refs["heads"].get(branch_name) == refs["HEAD"]:
-			prefixes.append("Already branched as %s:" % (branch_name,))
-			print "Already branched as %s:%s %s %s" % (
-				branch_name,
-				padding(),
-				refs["HEAD"],
-				get_commit_message(git_exe, refs["HEAD"]))
-		else:
-			subprocess.check_call([git_exe, "branch", "-f", branch_name])
-			prefixes.append("Created: %s" % (branch_name,))
-			print "Created: %s %s-> %s %s" % (
-				branch_name,
-				padding(),
-				refs["HEAD"],
-				get_commit_message(git_exe, refs["HEAD"]))
+	rows = []
+	try:
+		for output_message_row in mark_commits(args):
+			rows.append(output_message_row)
+	finally:
+		pprint_table(sys.stdout, rows)
 
 
 if __name__ == '__main__':
