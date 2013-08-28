@@ -303,22 +303,22 @@ def main():
 	""")
 
 	parser.add_argument('-u', '--tag-upstream', dest='tag_upstream',
-				  help="create a tag with this name pointing to the upstream commit")
+		help="create a tag with this name pointing to the upstream commit")
 
 	parser.add_argument('-t', '--tag-head', dest='tag_head',
-				  help="create a tag with this name pointing to HEAD")
+		help="create a tag with this name pointing to HEAD")
 
 	parser.add_argument('-b', '--branch-head', dest='branch_head',
-				  help="force-create a branch with this name pointing to HEAD")
+		help="force-create a branch with this name pointing to HEAD")
 
 	parser.add_argument('-g', '--git', dest='git_exe', default='git',
-				  help="path to git executable, default 'git'")
+		help="path to git executable, default 'git'")
 
 	args = parser.parse_args()
 
 	if not (args.tag_head or args.branch_head or args.tag_upstream):
 		print >>sys.stderr, "Must specify one or more of --tag-head, " \
-					  "--branch-head, or --tag-upstream; see --help"
+			"--branch-head, or --tag-upstream; see --help"
 		sys.exit(1)
 
 	rows = []
