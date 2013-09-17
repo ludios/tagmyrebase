@@ -22,7 +22,7 @@ counter that avoids collision with existing tags.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = '0.6.5'
+__version__ = '0.7'
 
 import re
 import sys
@@ -126,7 +126,10 @@ def get_reflog_entries(branch_name):
 		before_email += ">"
 		old, new, email = before_email.split(" ", 2)
 		_, date, tz = after_email.split("\t", 1)[0].split(" ", 2)
-		message = after_email.split("\t", 1)[1]
+		try:
+			message = after_email.split("\t", 1)[1]
+		except IndexError: # no \t
+			message = ""
 		if _ != "":
 			raise RuntimeError("Corrupt reflog? line was %r" % (line,))
 		yield dict(old=old, new=new, email=email, date=date, tz=tz, message=message)
