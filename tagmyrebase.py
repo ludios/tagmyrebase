@@ -22,7 +22,7 @@ counter that avoids collision with existing tags.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = '0.7'
+__version__ = '0.8'
 
 import re
 import sys
@@ -116,6 +116,8 @@ def make_tag_message(upstream_commit):
 	# Annotated tag already has tagger name, e-mail, and date
 	# TODO XXX: what if this date doesn't match the date that Python gets?
 	# Maybe set GIT_COMMITTER_DATE for git tag
+	if upstream_commit is None:
+		return ""
 	return "Onto: %s\n" % (upstream_commit,)
 
 
@@ -231,7 +233,8 @@ def mark_commits(args):
 	git_exe = args.git_exe
 	refs = get_refs(git_exe)
 
-	if args.tag_head or args.tag_upstream:
+	upstream_commit = None
+	if args.tag_upstream:
 		try:
 			upstream_commit, source = get_upstream_commit(git_exe, refs)
 		except UnknownUpstream:
