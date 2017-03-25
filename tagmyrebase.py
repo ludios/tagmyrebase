@@ -158,6 +158,12 @@ def all_equal(l):
 	return False
 
 
+def rev_list(revision_range):
+	return subprocess.check_output([
+		git_exe, "rev-list", revision_range
+	]).rstrip("\n").split("\n")
+
+
 def get_upstream_commit_from_reflog(refs):
 	heads = get_keys_for_value(refs["heads"], refs["HEAD"])
 	# More than one head may match our current commit, but not all reflogs
@@ -181,7 +187,11 @@ def get_upstream_commit_from_reflog(refs):
 		raise UnknownUpstream("rebases in reflogs for %r point to "
 			"different upstream commits: %r" % (heads, upstreams))
 
-	return upstreams[0]
+	upstream_commit = upstreams[0]
+	if refs["HEAD"] not in rev_list(upstream_commit + ".."):
+		raise UnknownUpstream("Used reflog to determine upstream commit was %r, "
+			"but it is not a parent commit of HEAD %r" % (upstream_commit, refs["HEAD"]))
+	return upstream_commit
 
 
 def get_upstream_commit_from_config(git_exe):
