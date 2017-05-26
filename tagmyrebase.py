@@ -22,7 +22,7 @@ counter that avoids collision with existing tags.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = '0.9'
+__version__ = '0.10'
 
 import re
 import sys
@@ -252,7 +252,7 @@ def mark_commits(args):
 			print >>sys.stderr, "Could not determine the upstream commit " \
 				"because this branch has never been rebased, nor is it " \
 				"configured to merge with a branch.  You probably want do something like:\n\n" \
-				"git branch --set-upstream %s origin/master\n" \
+				"git branch --set-upstream-to=origin/master %s\n" \
 				"git config branch.%s.rebase true" % (current_branch, current_branch)
 			sys.exit(2)
 
