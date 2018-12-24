@@ -53,27 +53,31 @@ _message_cache = {}
 def get_commit_with_message(commit):
 	if commit in _message_cache:
 		return _message_cache[commit]
-	message = subprocess.check_output(
-		["git",  "log", "--format=oneline", "--max-count=1", commit], encoding="utf-8").rstrip("\r\n")
+	message = subprocess.check_output([
+		"git",  "log", "--format=oneline", "--max-count=1", commit
+	], encoding="utf-8").rstrip("\r\n")
 	_message_cache[commit] = message
 	return message
 
 
 def get_current_branch():
-	return subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], encoding="utf-8").rstrip("\r\n")
+	return subprocess.check_output([
+		"git", "rev-parse", "--abbrev-ref", "HEAD"
+	], encoding="utf-8").rstrip("\r\n")
 
 
 def get_refs():
-	stdout = subprocess.check_output(["git", "show-ref", "--head", "--dereference"], encoding="utf-8")
+	stdout = subprocess.check_output([
+		"git", "show-ref", "--head", "--dereference"
+	], encoding="utf-8")
 	refs   = dict(tags={}, heads={}, HEAD=None)
 	lines  = stdout.replace("\r", "").strip("\n").split("\n")
 	DEREF  = "^{}"
 	for line in lines:
 		commit, ref = line.split(" ", 1)
 		if ref.startswith("refs/tags/") and ref.endswith(DEREF):
-			# Grab only the dereference lines ending with ^{} because
-			# we only care about the objects the tags point to, not the
-			# tags themselves.
+			# Grab only the dereference lines ending with ^{} because we only care
+			# about the objects the tags point to, not the tags themselves.
 			refs["tags"][ref.replace("refs/tags/", "", 1)[:-len(DEREF)]] = commit
 		elif ref.startswith("refs/heads/"):
 			refs["heads"][ref.replace("refs/heads/", "", 1)] = commit
@@ -159,7 +163,9 @@ def all_equal(l):
 
 
 def rev_list(revision_range):
-	return subprocess.check_output(["git", "rev-list", revision_range], encoding="utf-8").rstrip("\n").split("\n")
+	return subprocess.check_output([
+		"git", "rev-list", revision_range
+	], encoding="utf-8").rstrip("\n").split("\n")
 
 
 def get_upstream_commit_from_reflog(refs):
@@ -174,20 +180,23 @@ def get_upstream_commit_from_reflog(refs):
 	# rebase again, checkout another, tagmyrebase.
 
 	if not heads:
-		raise UnknownUpstream("HEAD is not on any branches;"
-			"we need a branch to read a reflog in .git/logs/refs/heads/")
+		raise UnknownUpstream(
+			"HEAD is not on any branches; we need a branch to read a reflog in "
+			".git/logs/refs/heads/")
 
 	upstreams = list(filter(lambda u: u is not None, map(get_last_rebase_onto, heads)))
 	if not upstreams:
 		raise UnknownUpstream(f"Could not find a rebase in reflogs for {repr(heads)}")
 
 	if not all_equal(upstreams):
-		raise UnknownUpstream(f"rebases in reflogs for {repr(heads)} point to "
+		raise UnknownUpstream(
+			f"rebases in reflogs for {repr(heads)} point to "
 			f"different upstream commits: {repr(upstreams)}")
 
 	upstream_commit = upstreams[0]
 	if refs["HEAD"] not in rev_list(upstream_commit + ".."):
-		raise UnknownUpstream(f"Used reflog to determine upstream commit was {repr(upstream_commit)}, "
+		raise UnknownUpstream(
+			f"Used reflog to determine upstream commit was {repr(upstream_commit)}, "
 			f"but it is not a parent commit of HEAD {repr(refs['HEAD'])}")
 	return upstream_commit
 
@@ -196,7 +205,8 @@ def get_upstream_commit_from_config():
 	# interpret_branch_name https://github.com/git/git/blob/master/sha1_name.c#L1037
 	try:
 		commit = subprocess.check_output([
-			"git", "rev-parse", "--revs-only", "@{upstream}"], encoding="utf-8").rstrip("\r\n")
+			"git", "rev-parse", "--revs-only", "@{upstream}"
+		], encoding="utf-8").rstrip("\r\n")
 		# If there's no @{upstream} and we used --revs-only, exit code is 0,
 		# so we have to raise an exception ourselves.
 		if commit == "":
@@ -247,9 +257,8 @@ def mark_commits(args):
 		except UnknownUpstream:
 			# TODO: just use "my-branch" if this fails
 			current_branch = get_current_branch()
-			print("Could not determine the upstream commit "
-				"because this branch has never been rebased, nor is it "
-				"configured to merge with a branch.  You probably want do something like:\n\n"
+			print("Could not determine the upstream commit because this branch has never been rebased, "
+				"nor is it configured to merge with a branch.  You probably want do something like:\n\n"
 				f"git branch --set-upstream-to=origin/master {current_branch}\n"
 				f"git config branch.{current_branch}.rebase true", file=sys.stderr)
 			sys.exit(2)
@@ -259,40 +268,29 @@ def mark_commits(args):
 
 	if args.tag_upstream:
 		existing_tags_on_upstream = get_keys_for_value(refs["tags"], upstream_commit)
-		if any(get_re_for_format_string(args.tag_upstream).match(tag) \
-			for tag in existing_tags_on_upstream):
-			yield (f"Already tagged with {repr(existing_tags_on_upstream)}:", "",
-				with_message(upstream_commit))
+		if any(get_re_for_format_string(args.tag_upstream).match(tag) for tag in existing_tags_on_upstream):
+			yield (f"Already tagged with {repr(existing_tags_on_upstream)}:", "", with_message(upstream_commit))
 		else:
 			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, refs)
-			subprocess.check_call(["git", "tag", "--annotate", "--message", "",
-				expanded_tag_upstream, upstream_commit])
-			yield (f"Created: {expanded_tag_upstream}", "->",
-				with_message(upstream_commit))
+			subprocess.check_call(["git", "tag", "--annotate", "--message", "", expanded_tag_upstream, upstream_commit])
+			yield (f"Created: {expanded_tag_upstream}", "->", with_message(upstream_commit))
 
 	if args.tag_head:
 		existing_tags_on_head = get_keys_for_value(refs["tags"], refs["HEAD"])
-		if any(get_re_for_format_string(args.tag_head).match(tag) \
-			for tag in existing_tags_on_head):
-			yield (f"Already tagged with {repr(existing_tags_on_head)}:", "",
-				with_message(refs["HEAD"]))
+		if any(get_re_for_format_string(args.tag_head).match(tag) for tag in existing_tags_on_head):
+			yield (f"Already tagged with {repr(existing_tags_on_head)}:", "", with_message(refs["HEAD"]))
 		else:
 			expanded_tag_head = get_expanded_name(args.tag_head, t, refs)
-			subprocess.check_call(["git", "tag", "--annotate", "--message",
-				make_tag_message(upstream_commit),
-				expanded_tag_head])
-			yield (f"Created: {expanded_tag_head}", "->",
-				with_message(refs["HEAD"]))
+			subprocess.check_call(["git", "tag", "--annotate", "--message", make_tag_message(upstream_commit), expanded_tag_head])
+			yield (f"Created: {expanded_tag_head}", "->", with_message(refs["HEAD"]))
 
 	if args.branch_head:
 		branch_name = get_expanded_name(args.branch_head, t, refs)
 		if refs["heads"].get(branch_name) == refs["HEAD"]:
-			yield (f"Already branched as {branch_name}:", "",
-				with_message(refs["HEAD"]))
+			yield (f"Already branched as {branch_name}:", "", with_message(refs["HEAD"]))
 		else:
 			subprocess.check_call(["git", "branch", "-f", branch_name])
-			yield (f"Created: {branch_name}", "->",
-				with_message(refs["HEAD"]))
+			yield (f"Created: {branch_name}", "->", with_message(refs["HEAD"]))
 
 
 def main():
