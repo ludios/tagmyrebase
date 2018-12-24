@@ -247,10 +247,10 @@ def mark_commits(args):
 		except UnknownUpstream:
 			# TODO: just use "my-branch" if this fails
 			current_branch = get_current_branch()
-			print("Could not determine the upstream commit " \
-				"because this branch has never been rebased, nor is it " \
-				"configured to merge with a branch.  You probably want do something like:\n\n" \
-				f"git branch --set-upstream-to=origin/master {current_branch}\n" \
+			print("Could not determine the upstream commit "
+				"because this branch has never been rebased, nor is it "
+				"configured to merge with a branch.  You probably want do something like:\n\n"
+				f"git branch --set-upstream-to=origin/master {current_branch}\n"
 				f"git config branch.{current_branch}.rebase true", file=sys.stderr)
 			sys.exit(2)
 
@@ -327,7 +327,7 @@ def main():
 	args = parser.parse_args()
 
 	if not (args.tag_head or args.branch_head or args.tag_upstream):
-		print("Must specify one or more of --tag-head, " \
+		print("Must specify one or more of --tag-head, "
 			"--branch-head, or --tag-upstream; see --help", file=sys.stderr)
 		sys.exit(1)
 
