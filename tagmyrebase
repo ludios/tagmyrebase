@@ -12,7 +12,7 @@ This allows you to
 
 Sample usage:
 git pull --rebase
-tagmyrebase.py --tag-upstream "U-{YMDN}" --tag-head "good-{YMDN}" --branch-head good
+tagmyrebase --tag-upstream "U-{YMDN}" --tag-head "good-{YMDN}" --branch-head good
 
 All three arguments are optional.
 
