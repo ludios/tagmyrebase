@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 """
 Utility to mark the HEAD with a branch and timestamped tag, and the upstream
@@ -12,7 +12,7 @@ This allows you to
 
 Sample usage:
 git pull --rebase
-tagmyrebase.py --tag-upstream 'U-{YMDN}' --tag-head 'good-{YMDN}' --branch-head good
+tagmyrebase.py --tag-upstream "U-{YMDN}" --tag-head "good-{YMDN}" --branch-head good
 
 All three arguments are optional.
 
@@ -22,7 +22,7 @@ counter that avoids collision with existing tags.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = '0.10'
+__version__ = "2.0.0"
 
 import re
 import sys
@@ -38,14 +38,14 @@ def get_re_for_format_string(format_string):
 	Returns a regular expression for a format string, so that we can check
 	if a tag already exists.
 	"""
-	YMDHMS_RE = r'\d\d\d\d-[01]\d-[0-3]\d_[0-2]\d-[0-5]\d-[0-6]\d'
-	YMDN_RE = r'\d\d\d\d-[01]\d-[0-3]\d\.\d+'
+	YMDHMS_RE = r"\d\d\d\d-[01]\d-[0-3]\d_[0-2]\d-[0-5]\d-[0-6]\d"
+	YMDN_RE   = r"\d\d\d\d-[01]\d-[0-3]\d\.\d+"
 	return re.compile(
-		r'\A' +
+		r"\A" +
 		format_string
-			.replace('{YMDHMS}', YMDHMS_RE)
-			.replace('{YMDN}', YMDN_RE) +
-		r'\Z')
+			.replace("{YMDHMS}", YMDHMS_RE)
+			.replace("{YMDN}", YMDN_RE) +
+		r"\Z")
 
 
 _message_cache = {}
@@ -54,20 +54,20 @@ def get_commit_with_message(commit):
 	if commit in _message_cache:
 		return _message_cache[commit]
 	message = subprocess.check_output(
-		["git",  "log", "--format=oneline", "--max-count=1", commit]).rstrip("\r\n")
+		["git",  "log", "--format=oneline", "--max-count=1", commit], encoding="utf-8").rstrip("\r\n")
 	_message_cache[commit] = message
 	return message
 
 
 def get_current_branch():
-	return subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).rstrip("\r\n")
+	return subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"], encoding="utf-8").rstrip("\r\n")
 
 
 def get_refs():
-	stdout = subprocess.check_output(["git", "show-ref", "--head", "--dereference"])
-	refs = dict(tags={}, heads={}, HEAD=None)
-	lines = stdout.replace("\r", "").strip("\n").split("\n")
-	DEREF = "^{}"
+	stdout = subprocess.check_output(["git", "show-ref", "--head", "--dereference"], encoding="utf-8")
+	refs   = dict(tags={}, heads={}, HEAD=None)
+	lines  = stdout.replace("\r", "").strip("\n").split("\n")
+	DEREF  = "^{}"
 	for line in lines:
 		commit, ref = line.split(" ", 1)
 		if ref.startswith("refs/tags/") and ref.endswith(DEREF):
@@ -84,21 +84,21 @@ def get_refs():
 
 
 def get_keys_for_value(d, value):
-	KEY = 0
+	KEY   = 0
 	VALUE = 1
-	return list(t[KEY] for t in d.iteritems() if t[VALUE] == value)
+	return list(t[KEY] for t in d.items() if t[VALUE] == value)
 
 
 def get_expanded_name(format_string, t, refs):
 	ymdn = None
-	if '{YMDN}' in format_string:
-		ymd = t.strftime('%Y-%m-%d')
-		for n in xrange(1, 100000):
-			proposed_ymdn = ymd + '.' + str(n)
+	if "{YMDN}" in format_string:
+		ymd = t.strftime("%Y-%m-%d")
+		for n in range(1, 100000):
+			proposed_ymdn = ymd + "." + str(n)
 			proposed_tag = get_expanded_name(
 				format_string.format(
 					YMDN=proposed_ymdn,
-					YMDHMS='{YMDHMS}'
+					YMDHMS="{YMDHMS}"
 				), t, refs)
 			if not proposed_tag in refs["tags"]:
 				ymdn = proposed_ymdn
@@ -108,7 +108,7 @@ def get_expanded_name(format_string, t, refs):
 
 	return format_string.format(
 		YMDN=ymdn,
-		YMDHMS=t.strftime('%Y-%m-%d_%H-%M-%S')
+		YMDHMS=t.strftime("%Y-%m-%d_%H-%M-%S")
 	)
 
 
@@ -123,7 +123,7 @@ def make_tag_message(upstream_commit):
 
 def get_reflog_entries(branch_name):
 	# show_one_reflog_ent https://github.com/git/git/blob/master/refs.c#L2985
-	for line in open(".git/logs/refs/heads/" + branch_name, "rb"):
+	for line in open(".git/logs/refs/heads/" + branch_name, "r"):
 		before_email, after_email = line.split(">", 1)
 		before_email += ">"
 		old, new, email = before_email.split(" ", 2)
@@ -159,9 +159,7 @@ def all_equal(l):
 
 
 def rev_list(revision_range):
-	return subprocess.check_output([
-		"git", "rev-list", revision_range
-	]).rstrip("\n").split("\n")
+	return subprocess.check_output(["git", "rev-list", revision_range], encoding="utf-8").rstrip("\n").split("\n")
 
 
 def get_upstream_commit_from_reflog(refs):
@@ -179,7 +177,7 @@ def get_upstream_commit_from_reflog(refs):
 		raise UnknownUpstream("HEAD is not on any branches;"
 			"we need a branch to read a reflog in .git/logs/refs/heads/")
 
-	upstreams = filter(lambda u: u is not None, map(get_last_rebase_onto, heads))
+	upstreams = list(filter(lambda u: u is not None, map(get_last_rebase_onto, heads)))
 	if not upstreams:
 		raise UnknownUpstream("Could not find a rebase in reflogs for %r" % (heads,))
 
@@ -198,12 +196,12 @@ def get_upstream_commit_from_config():
 	# interpret_branch_name https://github.com/git/git/blob/master/sha1_name.c#L1037
 	try:
 		commit = subprocess.check_output([
-			"git", "rev-parse", "--revs-only", "@{upstream}"]).rstrip("\r\n")
+			"git", "rev-parse", "--revs-only", "@{upstream}"], encoding="utf-8").rstrip("\r\n")
 		# If there's no @{upstream} and we used --revs-only, exit code is 0,
 		# so we have to raise an exception ourselves.
 		if commit == "":
 			raise UnknownUpstream("No upstream configured for branch")
-	except subprocess.CalledProcessError, e:
+	except subprocess.CalledProcessError as e:
 		raise UnknownUpstream("%s" % (e,))
 
 	return commit
@@ -234,12 +232,12 @@ def pprint_table(out, table):
 	for row in table:
 		for n, text in enumerate(row):
 			col = text.ljust(col_paddings[n])
-			print >>out, col,
-		print >>out
+			print(col, end=" ", file=out)
+		print("", file=out)
 
 
 def mark_commits(args):
-	t = datetime.datetime.now()
+	t    = datetime.datetime.now()
 	refs = get_refs()
 
 	upstream_commit = None
@@ -249,11 +247,11 @@ def mark_commits(args):
 		except UnknownUpstream:
 			# TODO: just use "my-branch" if this fails
 			current_branch = get_current_branch()
-			print >>sys.stderr, "Could not determine the upstream commit " \
+			print("Could not determine the upstream commit " \
 				"because this branch has never been rebased, nor is it " \
 				"configured to merge with a branch.  You probably want do something like:\n\n" \
 				"git branch --set-upstream-to=origin/master %s\n" \
-				"git config branch.%s.rebase true" % (current_branch, current_branch)
+				"git config branch.%s.rebase true" % (current_branch, current_branch), file=sys.stderr)
 			sys.exit(2)
 
 	def with_message(commit):
@@ -317,20 +315,20 @@ def main():
 	{YMDN} will not necessarily correspond on the HEAD and upstream commits.
 	""")
 
-	parser.add_argument('-u', '--tag-upstream', dest='tag_upstream',
+	parser.add_argument("-u", "--tag-upstream", dest="tag_upstream",
 		help="create a tag with this name pointing to the upstream commit")
 
-	parser.add_argument('-t', '--tag-head', dest='tag_head',
+	parser.add_argument("-t", "--tag-head", dest="tag_head",
 		help="create a tag with this name pointing to HEAD")
 
-	parser.add_argument('-b', '--branch-head', dest='branch_head',
+	parser.add_argument("-b", "--branch-head", dest="branch_head",
 		help="force-create a branch with this name pointing to HEAD")
 
 	args = parser.parse_args()
 
 	if not (args.tag_head or args.branch_head or args.tag_upstream):
-		print >>sys.stderr, "Must specify one or more of --tag-head, " \
-			"--branch-head, or --tag-upstream; see --help"
+		print("Must specify one or more of --tag-head, " \
+			"--branch-head, or --tag-upstream; see --help", file=sys.stderr)
 		sys.exit(1)
 
 	rows = []
@@ -341,5 +339,5 @@ def main():
 		pprint_table(sys.stdout, rows)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 	main()

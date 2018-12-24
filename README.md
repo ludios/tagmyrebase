@@ -1,7 +1,7 @@
 tagmyrebase
 ===========
 
-See the docstring or --help in `tagmyrebase.py`
+See the docstring or --help in `tagmyrebase`
 
 This is designed for simple use cases, where you need
 to keep rebasing a few patches on top of upstream.
