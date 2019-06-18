@@ -22,7 +22,7 @@ counter that avoids collision with existing tags.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 import re
 import sys
@@ -168,40 +168,7 @@ def rev_list(revision_range):
 	], encoding="utf-8").rstrip("\n").split("\n")
 
 
-def get_upstream_commit_from_reflog(refs):
-	heads = get_keys_for_value(refs["heads"], refs["HEAD"])
-	# More than one head may match our current commit, but not all reflogs
-	# will have the rebase information we're looking for.  (e.g. new branch created
-	# from another branch will have just "branch: Created from HEAD" in the reflog.)
-
-	# TODO: maybe parse *all* of the reflogs, since any of them could contain
-	# the rebase we're looking for (look at the old, new columns)?  That would help
-	# in this case: rebase on master, checkout -b another, switch to master,
-	# rebase again, checkout another, tagmyrebase.
-
-	if not heads:
-		raise UnknownUpstream(
-			"HEAD is not on any branches; we need a branch to read a reflog in "
-			".git/logs/refs/heads/")
-
-	upstreams = list(filter(lambda u: u is not None, map(get_last_rebase_onto, heads)))
-	if not upstreams:
-		raise UnknownUpstream(f"Could not find a rebase in reflogs for {repr(heads)}")
-
-	if not all_equal(upstreams):
-		raise UnknownUpstream(
-			f"rebases in reflogs for {repr(heads)} point to "
-			f"different upstream commits: {repr(upstreams)}")
-
-	upstream_commit = upstreams[0]
-	if refs["HEAD"] not in rev_list(upstream_commit + ".."):
-		raise UnknownUpstream(
-			f"Used reflog to determine upstream commit was {repr(upstream_commit)}, "
-			f"but it is not a parent commit of HEAD {repr(refs['HEAD'])}")
-	return upstream_commit
-
-
-def get_upstream_commit_from_config():
+def get_upstream_commit():
 	# interpret_branch_name https://github.com/git/git/blob/master/sha1_name.c#L1037
 	try:
 		commit = subprocess.check_output([
@@ -215,25 +182,6 @@ def get_upstream_commit_from_config():
 		raise UnknownUpstream(str(e))
 
 	return commit
-
-
-def get_upstream_commit(refs):
-	"""
-	Return the upstream commit that our patches (if we have any) are rebased
-	on top of.
-
-	Why do we first try to get the upstream commit from the reflog instead of
-	just guessing based on the upstream branch set in .git/config?  Because
-	(1) git rebase allows rebasing onto arbitrary commits, and the user may have done this
-	(2) the user might not have set up an upstream branch yet
-	"""
-	try:
-		return get_upstream_commit_from_reflog(refs), "reflog"
-	except UnknownUpstream:
-		return get_upstream_commit_from_config(), "config"
-
-	# TODO: make sure the commit we decide is the upstream commit is actually
-	# a parent of the HEAD commit (or ==?)
 
 
 def pprint_table(out, table):
@@ -253,7 +201,7 @@ def mark_commits(args):
 	upstream_commit = None
 	if args.tag_upstream:
 		try:
-			upstream_commit, source = get_upstream_commit(refs)
+			upstream_commit = get_upstream_commit()
 		except UnknownUpstream:
 			# TODO: just use "my-branch" if this fails
 			current_branch = get_current_branch()
