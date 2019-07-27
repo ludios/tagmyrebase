@@ -22,7 +22,7 @@ counter that avoids collision with existing tags.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = "2.1.0"
+__version__ = "3.0.0"
 
 import re
 import sys
@@ -114,15 +114,6 @@ def get_expanded_name(format_string, t, refs):
 		YMDN=ymdn,
 		YMDHMS=t.strftime("%Y-%m-%d_%H-%M-%S")
 	)
-
-
-def make_tag_message(upstream_commit):
-	# Annotated tag already has tagger name, e-mail, and date
-	# TODO XXX: what if this date doesn't match the date that Python gets?
-	# Maybe set GIT_COMMITTER_DATE for git tag
-	if upstream_commit is None:
-		return ""
-	return f"Onto: {upstream_commit}\n"
 
 
 def get_reflog_entries(branch_name):
@@ -220,7 +211,7 @@ def mark_commits(args):
 			yield (f"Already tagged with {repr(existing_tags_on_upstream)}:", "", with_message(upstream_commit))
 		else:
 			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, refs)
-			subprocess.check_call(["git", "tag", "--annotate", "--message", "", expanded_tag_upstream, upstream_commit])
+			subprocess.check_call(["git", "tag", expanded_tag_upstream, upstream_commit])
 			yield (f"Created: {expanded_tag_upstream}", "->", with_message(upstream_commit))
 
 	if args.tag_head:
@@ -229,7 +220,7 @@ def mark_commits(args):
 			yield (f"Already tagged with {repr(existing_tags_on_head)}:", "", with_message(refs["HEAD"]))
 		else:
 			expanded_tag_head = get_expanded_name(args.tag_head, t, refs)
-			subprocess.check_call(["git", "tag", "--annotate", "--message", make_tag_message(upstream_commit), expanded_tag_head])
+			subprocess.check_call(["git", "tag", expanded_tag_head])
 			yield (f"Created: {expanded_tag_head}", "->", with_message(refs["HEAD"]))
 
 	if args.branch_head:
