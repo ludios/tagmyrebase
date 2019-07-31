@@ -22,7 +22,7 @@ counter that avoids collision with existing tags.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
-__version__ = "3.0.0"
+__version__ = "3.1.0"
 
 import re
 import sys
@@ -75,10 +75,18 @@ def get_refs():
 	DEREF  = "^{}"
 	for line in lines:
 		commit, ref = line.split(" ", 1)
-		if ref.startswith("refs/tags/") and ref.endswith(DEREF):
-			# Grab only the dereference lines ending with ^{} because we only care
-			# about the objects the tags point to, not the tags themselves.
-			refs["tags"][ref.replace("refs/tags/", "", 1)[:-len(DEREF)]] = commit
+		if ref.startswith("refs/tags/"):
+			# For the old heavyweight tags, use the dereference line ending with ^{}
+			# which point to the correct commit. `git show-ref --head --dereference`
+			# prints ^{} line after the tag line, so the wrong commit will be replaced
+			# with correct commit.
+			#
+			# For the new lightweight tags, there is no dereference line, but the tag
+			# itself points to the correct commit.
+			tag = ref.replace("refs/tags/", "", 1)
+			if tag.endswith(DEREF):
+				tag = tag[:-len(DEREF)]
+			refs["tags"][tag] = commit
 		elif ref.startswith("refs/heads/"):
 			refs["heads"][ref.replace("refs/heads/", "", 1)] = commit
 		elif ref == "HEAD":
