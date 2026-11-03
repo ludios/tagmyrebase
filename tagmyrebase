@@ -31,6 +31,7 @@ __version__ = "3.2.0"
 
 import argparse
 import datetime
+import os
 import re
 import subprocess
 import sys
@@ -351,6 +352,11 @@ def main() -> None:
 		print("Must specify one or more of --tag-head, "
 			"--branch-head, or --tag-upstream; see --help", file=sys.stderr)
 		sys.exit(1)
+
+	# None of our git commands read input, so give them /dev/null instead of
+	# the terminal. A git that runs on another host over `ssh -t` would
+	# otherwise read, and then throw away, the keys typed ahead for the shell.
+	os.dup2(os.open(os.devnull, os.O_RDONLY), 0)
 
 	rows: list[tuple[str, str, str]] = []
 	try:
