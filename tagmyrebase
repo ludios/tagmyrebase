@@ -289,7 +289,7 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 			yield (f"Already tagged with {existing_tags_on_upstream!r}:", "", with_message(upstream_commit))
 		else:
 			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, existing_names)
-			subprocess.check_call(["git", "tag", expanded_tag_upstream, upstream_commit])
+			subprocess.check_call(["git", "tag", "--no-sign", expanded_tag_upstream, upstream_commit])
 			yield (f"Created: {expanded_tag_upstream}", "->", with_message(upstream_commit))
 
 	if args.tag_head:
@@ -298,7 +298,7 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 			yield (f"Already tagged with {existing_tags_on_head!r}:", "", with_message(refs.head))
 		else:
 			expanded_tag_head = get_expanded_name(args.tag_head, t, existing_names)
-			subprocess.check_call(["git", "tag", expanded_tag_head])
+			subprocess.check_call(["git", "tag", "--no-sign", expanded_tag_head])
 			yield (f"Created: {expanded_tag_head}", "->", with_message(refs.head))
 
 	if args.branch_head:
