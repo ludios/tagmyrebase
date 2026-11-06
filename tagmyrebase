@@ -307,7 +307,7 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 			yield (f"Already tagged with {existing_tags_on_head!r}:", "", with_message(refs.head))
 		else:
 			expanded_tag_head = get_expanded_name(args.tag_head, t, existing_names)
-			git("tag", "--no-sign", expanded_tag_head)
+			git("tag", "--no-sign", expanded_tag_head, refs.head)
 			yield (f"Created: {expanded_tag_head}", "->", with_message(refs.head))
 
 	if args.branch_head:
@@ -317,7 +317,7 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 			yield (f"Already branched as {', '.join(matching_branches_on_head)}:", "", with_message(refs.head))
 		else:
 			branch_name = get_expanded_name(args.branch_head, t, existing_names)
-			git("branch", "-f", branch_name)
+			git("branch", "-f", branch_name, refs.head)
 			yield (f"Created: {branch_name}", "->", with_message(refs.head))
 
 
