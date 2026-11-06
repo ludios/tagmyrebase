@@ -129,7 +129,7 @@ def get_refs() -> Refs:
 			head = commit
 		# We don't need remotes
 	if head is None:
-		raise NoHeadCommit("HEAD does not point to a commit, because the current branch has no commits yet")
+		raise NoHeadCommit("HEAD does not point to a commit")
 	return Refs(tags=tags, heads=heads, head=head)
 
 
@@ -233,8 +233,13 @@ def pprint_table(out: TextIO, table: Sequence[Sequence[str]]) -> None:
 
 
 def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
-	t    = datetime.datetime.now()
-	refs = get_refs()
+	t = datetime.datetime.now()
+	try:
+		refs = get_refs()
+	except NoHeadCommit:
+		print("Could not mark anything because HEAD does not point to a commit "
+			"(usually because the current branch has no commits yet).", file=sys.stderr)
+		sys.exit(2)
 
 	def with_message(commit: str) -> str:
 		return get_commit_with_message(commit)
