@@ -18,7 +18,8 @@ All three arguments are optional.
 
 For any of --tag-upstream, --tag-head, and --branch-head, you can use {YMDHMS}
 to insert the current time, or {YMDN} to insert the current date with a
-counter that avoids collision with existing tags.  Note that the {YMDHMS} or
+counter that avoids collision with existing tags (or, for --branch-head,
+with existing branches).  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
@@ -29,15 +30,16 @@ import datetime
 import re
 import subprocess
 import sys
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Container, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TextIO
 
 
 def get_re_for_format_string(format_string: str) -> re.Pattern[str]:
 	"""
-	Returns a regular expression for a format string, so that we can check
-	if a tag already exists.
+	Return a regular expression that matches every name that format_string
+	can expand to, so that we can check whether a commit already has a tag or
+	branch with such a name.
 	"""
 	YMDHMS_RE = r"\d\d\d\d-[01]\d-[0-3]\d_[0-2]\d-[0-5]\d-[0-6]\d"
 	YMDN_RE   = r"\d\d\d\d-[01]\d-[0-3]\d\.\d+"
@@ -139,22 +141,27 @@ def get_keys_for_value(d: Mapping[str, str], value: str) -> list[str]:
 	return [t[KEY] for t in d.items() if t[VALUE] == value]
 
 
-def get_expanded_name(format_string: str, t: datetime.datetime, refs: Refs) -> str:
+def get_expanded_name(format_string: str, t: datetime.datetime, existing_names: Container[str]) -> str:
+	"""
+	Return format_string with {YMDHMS} replaced by the time t, and {YMDN}
+	replaced by the date of t and the lowest counter (starting at 1) that makes
+	the returned name differ from every name in existing_names.
+	"""
 	ymdn: str | None = None
 	if "{YMDN}" in format_string:
 		ymd = t.strftime("%Y-%m-%d")
 		for n in range(1, 100000):
 			proposed_ymdn = ymd + "." + str(n)
-			proposed_tag = get_expanded_name(
+			proposed_name = get_expanded_name(
 				format_string.format(
 					YMDN=proposed_ymdn,
 					YMDHMS="{YMDHMS}"
-				), t, refs)
-			if not proposed_tag in refs.tags:
+				), t, existing_names)
+			if not proposed_name in existing_names:
 				ymdn = proposed_ymdn
 				break
 		else:
-			raise RuntimeError("100,000 tags in one day is too many tags")
+			raise RuntimeError(f"no unused {{YMDN}} counter from 1 to 99999 for {format_string!r}")
 
 	return format_string.format(
 		YMDN=ymdn,
@@ -272,7 +279,7 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 		if any(get_re_for_format_string(args.tag_upstream).match(tag) for tag in existing_tags_on_upstream):
 			yield (f"Already tagged with {existing_tags_on_upstream!r}:", "", with_message(upstream_commit))
 		else:
-			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, refs)
+			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, refs.tags)
 			subprocess.check_call(["git", "tag", expanded_tag_upstream, upstream_commit])
 			yield (f"Created: {expanded_tag_upstream}", "->", with_message(upstream_commit))
 
@@ -281,15 +288,17 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 		if any(get_re_for_format_string(args.tag_head).match(tag) for tag in existing_tags_on_head):
 			yield (f"Already tagged with {existing_tags_on_head!r}:", "", with_message(refs.head))
 		else:
-			expanded_tag_head = get_expanded_name(args.tag_head, t, refs)
+			expanded_tag_head = get_expanded_name(args.tag_head, t, refs.tags)
 			subprocess.check_call(["git", "tag", expanded_tag_head])
 			yield (f"Created: {expanded_tag_head}", "->", with_message(refs.head))
 
 	if args.branch_head:
-		branch_name = get_expanded_name(args.branch_head, t, refs)
-		if refs.heads.get(branch_name) == refs.head:
-			yield (f"Already branched as {branch_name}:", "", with_message(refs.head))
+		pattern = get_re_for_format_string(args.branch_head)
+		matching_branches_on_head = [b for b in get_keys_for_value(refs.heads, refs.head) if pattern.match(b)]
+		if matching_branches_on_head:
+			yield (f"Already branched as {', '.join(matching_branches_on_head)}:", "", with_message(refs.head))
 		else:
+			branch_name = get_expanded_name(args.branch_head, t, refs.heads)
 			subprocess.check_call(["git", "branch", "-f", branch_name])
 			yield (f"Created: {branch_name}", "->", with_message(refs.head))
 
@@ -310,7 +319,8 @@ def main() -> None:
 		epilog="""
 	For any of --tag-upstream, --tag-head, and --branch-head, you can use
 	{YMDHMS} to insert the current time, or {YMDN} to insert the current date
-	with a counter that avoids collision with existing tags.  Note that the {YMDHMS} or
+	with a counter that avoids collision with existing tags (or, for --branch-head,
+	with existing branches).  Note that the {YMDHMS} or
 	{YMDN} will not necessarily correspond on the HEAD and upstream commits.
 	""")
 
