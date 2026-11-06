@@ -43,9 +43,9 @@ def get_re_for_format_string(format_string: str) -> re.Pattern[str]:
 	YMDN_RE   = r"\d\d\d\d-[01]\d-[0-3]\d\.\d+"
 	return re.compile(
 		r"\A" +
-		format_string
-			.replace("{YMDHMS}", YMDHMS_RE)
-			.replace("{YMDN}", YMDN_RE) +
+		re.escape(format_string)
+			.replace(re.escape("{YMDHMS}"), YMDHMS_RE)
+			.replace(re.escape("{YMDN}"), YMDN_RE) +
 		r"\Z")
 
 
