@@ -175,7 +175,7 @@ def get_upstream_commit() -> str:
 
 	Raise UnknownUpstream if the current branch has no upstream branch.
 	"""
-	# interpret_branch_name https://github.com/git/git/blob/master/sha1_name.c#L1037
+	# repo_interpret_branch_name https://github.com/git/git/blob/0ffa3e35c7c82ab8d0de226149fb03b3f7674d05/object-name.c#L1471
 	try:
 		upstream_tip = subprocess.check_output([
 			"git", "rev-parse", "--revs-only", "@{upstream}"
