@@ -19,8 +19,12 @@ All three arguments are optional.
 For any of --tag-upstream, --tag-head, and --branch-head, you can use {YMDHMS}
 to insert the current time, or {YMDN} to insert the current date with a
 counter that avoids collision with the names of existing tags and local
-branches.  Note that the {YMDHMS} or
-{YMDN} will not necessarily correspond on the HEAD and upstream commits.
+branches.  Note that the {YMDHMS} or {YMDN} will not necessarily correspond
+on the HEAD and upstream commits.
+
+An option creates nothing if its commit already has a tag (for --tag-upstream
+and --tag-head) or a local branch (for --branch-head) whose name the option's
+format can expand to, with any date, time, or counter.
 """
 
 __version__ = "3.2.0"
@@ -144,8 +148,9 @@ def get_keys_for_value(d: Mapping[str, str], value: str) -> list[str]:
 def get_expanded_name(format_string: str, t: datetime.datetime, existing_names: Container[str]) -> str:
 	"""
 	Return format_string with {YMDHMS} replaced by the time t, and {YMDN}
-	replaced by the date of t and the lowest counter (starting at 1) that makes
-	the returned name differ from every name in existing_names.
+	replaced by the date of t and the lowest counter from 1 to 99999 that makes
+	the returned name differ from every name in existing_names.  Raise
+	RuntimeError if every one of those counters is taken.
 	"""
 	ymdn: str | None = None
 	if "{YMDN}" in format_string:
@@ -323,8 +328,12 @@ def main() -> None:
 	For any of --tag-upstream, --tag-head, and --branch-head, you can use
 	{YMDHMS} to insert the current time, or {YMDN} to insert the current date
 	with a counter that avoids collision with the names of existing tags and local
-	branches.  Note that the {YMDHMS} or
-	{YMDN} will not necessarily correspond on the HEAD and upstream commits.
+	branches.  Note that the {YMDHMS} or {YMDN} will not necessarily correspond
+	on the HEAD and upstream commits.
+
+	An option creates nothing if its commit already has a tag (for --tag-upstream
+	and --tag-head) or a local branch (for --branch-head) whose name the option's
+	format can expand to, with any date, time, or counter.
 	""")
 
 	parser.add_argument("-u", "--tag-upstream", dest="tag_upstream",
