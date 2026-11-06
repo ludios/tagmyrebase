@@ -18,8 +18,8 @@ All three arguments are optional.
 
 For any of --tag-upstream, --tag-head, and --branch-head, you can use {YMDHMS}
 to insert the current time, or {YMDN} to insert the current date with a
-counter that avoids collision with existing tags (or, for --branch-head,
-with existing branches).  Note that the {YMDHMS} or
+counter that avoids collision with the names of existing tags and local
+branches.  Note that the {YMDHMS} or
 {YMDN} will not necessarily correspond on the HEAD and upstream commits.
 """
 
@@ -247,6 +247,9 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 		print("Could not mark anything because HEAD does not point to a commit "
 			"(usually because the current branch has no commits yet).", file=sys.stderr)
 		sys.exit(2)
+	# Every {YMDN} counter skips the names of both tags and branches, so that
+	# no new tag or branch gets a name that git would find ambiguous.
+	existing_names = refs.tags.keys() | refs.heads.keys()
 
 	def with_message(commit: str) -> str:
 		return get_commit_with_message(commit)
@@ -279,7 +282,7 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 		if any(get_re_for_format_string(args.tag_upstream).match(tag) for tag in existing_tags_on_upstream):
 			yield (f"Already tagged with {existing_tags_on_upstream!r}:", "", with_message(upstream_commit))
 		else:
-			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, refs.tags)
+			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, existing_names)
 			subprocess.check_call(["git", "tag", expanded_tag_upstream, upstream_commit])
 			yield (f"Created: {expanded_tag_upstream}", "->", with_message(upstream_commit))
 
@@ -288,7 +291,7 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 		if any(get_re_for_format_string(args.tag_head).match(tag) for tag in existing_tags_on_head):
 			yield (f"Already tagged with {existing_tags_on_head!r}:", "", with_message(refs.head))
 		else:
-			expanded_tag_head = get_expanded_name(args.tag_head, t, refs.tags)
+			expanded_tag_head = get_expanded_name(args.tag_head, t, existing_names)
 			subprocess.check_call(["git", "tag", expanded_tag_head])
 			yield (f"Created: {expanded_tag_head}", "->", with_message(refs.head))
 
@@ -298,7 +301,7 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 		if matching_branches_on_head:
 			yield (f"Already branched as {', '.join(matching_branches_on_head)}:", "", with_message(refs.head))
 		else:
-			branch_name = get_expanded_name(args.branch_head, t, refs.heads)
+			branch_name = get_expanded_name(args.branch_head, t, existing_names)
 			subprocess.check_call(["git", "branch", "-f", branch_name])
 			yield (f"Created: {branch_name}", "->", with_message(refs.head))
 
@@ -319,8 +322,8 @@ def main() -> None:
 		epilog="""
 	For any of --tag-upstream, --tag-head, and --branch-head, you can use
 	{YMDHMS} to insert the current time, or {YMDN} to insert the current date
-	with a counter that avoids collision with existing tags (or, for --branch-head,
-	with existing branches).  Note that the {YMDHMS} or
+	with a counter that avoids collision with the names of existing tags and local
+	branches.  Note that the {YMDHMS} or
 	{YMDN} will not necessarily correspond on the HEAD and upstream commits.
 	""")
 
