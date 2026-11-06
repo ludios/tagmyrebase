@@ -262,12 +262,33 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 		print("Could not mark anything because HEAD does not point to a commit "
 			"(usually because the current branch has no commits yet).", file=sys.stderr)
 		sys.exit(2)
-	# Every {YMDN} counter skips the names of both tags and branches, so that
-	# no new tag or branch gets a name that git would find ambiguous.
-	existing_names = refs.tags.keys() | refs.heads.keys()
+	# Maps each tag name to the commit that the tag points to, like refs.tags,
+	# but also gets each tag that tag_commit creates, so that -t sees the tag
+	# that -u created.  (Nothing needs to see the branch that -b creates,
+	# because -b runs last.)
+	tags = dict(refs.tags)
+
+	def get_existing_names() -> set[str]:
+		# Every {YMDN} counter skips the names of both tags and branches, so that
+		# no new tag or branch gets a name that git would find ambiguous.
+		return tags.keys() | refs.heads.keys()
 
 	def with_message(commit: str) -> str:
 		return get_commit_with_message(commit)
+
+	def tag_commit(format_string: str, commit: str) -> tuple[str, str, str]:
+		"""
+		Create a tag named format_string (expanded) that points to commit,
+		unless commit already has a tag whose name format_string can expand to.
+		Return the row that describes what happened, for pprint_table.
+		"""
+		existing_tags = get_keys_for_value(tags, commit)
+		if any(get_re_for_format_string(format_string).match(tag) for tag in existing_tags):
+			return (f"Already tagged with {existing_tags!r}:", "", with_message(commit))
+		name = get_expanded_name(format_string, t, get_existing_names())
+		git("tag", "--no-sign", name, commit)
+		tags[name] = commit
+		return (f"Created: {name}", "->", with_message(commit))
 
 	if args.tag_upstream:
 		try:
@@ -293,22 +314,10 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 				"been fetched yet; `git fetch --deepen=<number of commits>` or "
 				"`git fetch --unshallow` can fetch it.", file=sys.stderr)
 			sys.exit(2)
-		existing_tags_on_upstream = get_keys_for_value(refs.tags, upstream_commit)
-		if any(get_re_for_format_string(args.tag_upstream).match(tag) for tag in existing_tags_on_upstream):
-			yield (f"Already tagged with {existing_tags_on_upstream!r}:", "", with_message(upstream_commit))
-		else:
-			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, existing_names)
-			git("tag", "--no-sign", expanded_tag_upstream, upstream_commit)
-			yield (f"Created: {expanded_tag_upstream}", "->", with_message(upstream_commit))
+		yield tag_commit(args.tag_upstream, upstream_commit)
 
 	if args.tag_head:
-		existing_tags_on_head = get_keys_for_value(refs.tags, refs.head)
-		if any(get_re_for_format_string(args.tag_head).match(tag) for tag in existing_tags_on_head):
-			yield (f"Already tagged with {existing_tags_on_head!r}:", "", with_message(refs.head))
-		else:
-			expanded_tag_head = get_expanded_name(args.tag_head, t, existing_names)
-			git("tag", "--no-sign", expanded_tag_head, refs.head)
-			yield (f"Created: {expanded_tag_head}", "->", with_message(refs.head))
+		yield tag_commit(args.tag_head, refs.head)
 
 	if args.branch_head:
 		pattern = get_re_for_format_string(args.branch_head)
@@ -316,7 +325,7 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 		if matching_branches_on_head:
 			yield (f"Already branched as {', '.join(matching_branches_on_head)}:", "", with_message(refs.head))
 		else:
-			branch_name = get_expanded_name(args.branch_head, t, existing_names)
+			branch_name = get_expanded_name(args.branch_head, t, get_existing_names())
 			git("branch", "-f", branch_name, refs.head)
 			yield (f"Created: {branch_name}", "->", with_message(refs.head))
 
