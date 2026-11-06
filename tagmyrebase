@@ -27,8 +27,6 @@ and --tag-head) or a local branch (for --branch-head) whose name the option's
 format can expand to, with any date, time, or counter.
 """
 
-__version__ = "3.2.0"
-
 import argparse
 import datetime
 import os
