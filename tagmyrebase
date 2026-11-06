@@ -62,12 +62,6 @@ def git(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
 	stdout is everything that git wrote to its stdout, decoded as UTF-8.  If
 	check is true, raise subprocess.CalledProcessError if git exits with a
 	nonzero status.
-
-	git gets /dev/null as its stdin, because none of our git commands read
-	input, and because `git` may be a wrapper that runs git on another host
-	over `ssh -t` when stdin is a terminal.  Then ssh would read the keys typed
-	ahead for the next shell command and send them to the remote git, which
-	never reads them, so they would be lost.
 	"""
 	return subprocess.run(["git", *args], stdin=subprocess.DEVNULL,
 		stdout=subprocess.PIPE, encoding="utf-8", check=check)
