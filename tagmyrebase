@@ -32,6 +32,7 @@ so they ignore git's tag.gpgSign setting.
 
 import argparse
 import datetime
+import functools
 import re
 import subprocess
 import sys
@@ -67,14 +68,9 @@ def git(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
 		stdout=subprocess.PIPE, encoding="utf-8", check=check)
 
 
-_message_cache: dict[str, str] = {}
-
+@functools.cache
 def get_commit_with_message(commit: str) -> str:
-	if commit in _message_cache:
-		return _message_cache[commit]
-	message = git("log", "--format=oneline", "--encoding=UTF-8", "--max-count=1", commit).stdout.rstrip("\r\n")
-	_message_cache[commit] = message
-	return message
+	return git("log", "--format=oneline", "--encoding=UTF-8", "--max-count=1", commit).stdout.rstrip("\r\n")
 
 
 def get_current_branch() -> str | None:
