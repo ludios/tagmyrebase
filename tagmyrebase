@@ -78,7 +78,7 @@ _message_cache: dict[str, str] = {}
 def get_commit_with_message(commit: str) -> str:
 	if commit in _message_cache:
 		return _message_cache[commit]
-	message = git("log", "--format=oneline", "--max-count=1", commit).stdout.rstrip("\r\n")
+	message = git("log", "--format=oneline", "--encoding=UTF-8", "--max-count=1", commit).stdout.rstrip("\r\n")
 	_message_cache[commit] = message
 	return message
 
