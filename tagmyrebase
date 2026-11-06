@@ -162,31 +162,60 @@ def rev_list(revision_range):
 	], encoding="utf-8").rstrip("\n").split("\n")
 
 
+class NoCommonAncestor(Exception):
+	pass
+
+
+def merge_base_with_upstream(*options: str) -> str | None:
+	"""
+	Run `git merge-base OPTIONS @{upstream} HEAD`, where OPTIONS are extra
+	options for `git merge-base`, such as "--fork-point".
+
+	Return the full hash of the commit that git prints, or None if git finds
+	no such commit (exit status 1).  Raise UnknownUpstream if git can't
+	resolve @{upstream} (exit status 128): HEAD is detached, or the current
+	branch has no upstream configured, or the configured upstream ref doesn't
+	exist.  In that case, git has already printed the reason to stderr.
+	"""
+	# git resolves @{upstream} in repo_interpret_branch_name:
+	# https://github.com/git/git/blob/0ffa3e35c7c82ab8d0de226149fb03b3f7674d05/object-name.c#L1471
+	result = subprocess.run(
+		["git", "merge-base", *options, "@{upstream}", "HEAD"],
+		stdout=subprocess.PIPE, encoding="utf-8", check=False)
+	if result.returncode == 1:
+		return None
+	if result.returncode == 128:
+		raise UnknownUpstream("git could not resolve @{upstream}")
+	result.check_returncode()
+	commit = result.stdout.rstrip("\n")
+	assert re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", commit), f"not a full commit hash: {commit!r}"
+	return commit
+
+
 def get_upstream_commit() -> str:
 	"""
-	Return the full hash of the merge base of HEAD and @{upstream}.  After
-	`git pull --rebase`, this is the upstream commit that the current branch
-	was rebased onto.  A fetch after the rebase can move @{upstream} to a
-	newer commit that HEAD doesn't contain, but the merge base stays on the
-	commit that HEAD was rebased onto.
+	Return the full hash of the upstream commit that HEAD is based on: the
+	commit of the current branch's upstream branch (@{upstream}) that the
+	branch was most recently rebased onto, for example by `git pull --rebase`.
 
-	Raise UnknownUpstream if the current branch has no upstream branch.
+	That commit isn't necessarily where @{upstream} points now: a fetch after
+	the rebase can move @{upstream} to newer commits, or (if upstream was
+	force-pushed) to commits that replace the one that HEAD is based on.  So
+	first try `git merge-base --fork-point`, which also looks at the earlier
+	values of @{upstream} in its reflog.  If that finds nothing (for example,
+	because the reflog entry expired, or because the branch was based on a
+	commit that was never the tip of @{upstream}), fall back to a best common
+	ancestor of HEAD and @{upstream} (if there are several, git picks one).
+
+	Raise UnknownUpstream if git can't resolve @{upstream}.  Raise
+	NoCommonAncestor if HEAD and @{upstream} have no common ancestor in this
+	repository (in a shallow clone, the common ancestor might just not have
+	been fetched).
 	"""
-	# repo_interpret_branch_name https://github.com/git/git/blob/0ffa3e35c7c82ab8d0de226149fb03b3f7674d05/object-name.c#L1471
-	try:
-		upstream_tip = subprocess.check_output([
-			"git", "rev-parse", "--revs-only", "@{upstream}"
-		], encoding="utf-8").rstrip("\r\n")
-		# If there's no @{upstream} and we used --revs-only, exit code is 0,
-		# so we have to raise an exception ourselves.
-		if upstream_tip == "":
-			raise UnknownUpstream("No upstream configured for branch")
-	except subprocess.CalledProcessError as e:
-		raise UnknownUpstream(str(e))
-
-	return subprocess.check_output([
-		"git", "merge-base", "HEAD", upstream_tip
-	], encoding="utf-8").rstrip("\r\n")
+	commit = merge_base_with_upstream("--fork-point") or merge_base_with_upstream()
+	if commit is None:
+		raise NoCommonAncestor("HEAD and @{upstream} have no common ancestor")
+	return commit
 
 
 def pprint_table(out, table):
@@ -214,6 +243,12 @@ def mark_commits(args):
 				"nor is it configured to merge with a branch.  You probably want do something like:\n\n"
 				f"git branch --set-upstream-to=origin/master {current_branch}\n"
 				f"git config branch.{current_branch}.rebase true", file=sys.stderr)
+			sys.exit(2)
+		except NoCommonAncestor:
+			print("Could not determine the upstream commit because HEAD and @{upstream} have no "
+				"common ancestor.  If this is a shallow clone, the common ancestor might not have "
+				"been fetched yet; `git fetch --deepen=<number of commits>` or "
+				"`git fetch --unshallow` can fetch it.", file=sys.stderr)
 			sys.exit(2)
 
 	def with_message(commit):
