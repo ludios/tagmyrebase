@@ -249,7 +249,7 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 			sys.exit(2)
 		existing_tags_on_upstream = get_keys_for_value(refs.tags, upstream_commit)
 		if any(get_re_for_format_string(args.tag_upstream).match(tag) for tag in existing_tags_on_upstream):
-			yield (f"Already tagged with {repr(existing_tags_on_upstream)}:", "", with_message(upstream_commit))
+			yield (f"Already tagged with {existing_tags_on_upstream!r}:", "", with_message(upstream_commit))
 		else:
 			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, refs)
 			subprocess.check_call(["git", "tag", expanded_tag_upstream, upstream_commit])
@@ -258,7 +258,7 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 	if args.tag_head:
 		existing_tags_on_head = get_keys_for_value(refs.tags, refs.head)
 		if any(get_re_for_format_string(args.tag_head).match(tag) for tag in existing_tags_on_head):
-			yield (f"Already tagged with {repr(existing_tags_on_head)}:", "", with_message(refs.head))
+			yield (f"Already tagged with {existing_tags_on_head!r}:", "", with_message(refs.head))
 		else:
 			expanded_tag_head = get_expanded_name(args.tag_head, t, refs)
 			subprocess.check_call(["git", "tag", expanded_tag_head])
