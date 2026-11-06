@@ -30,8 +30,6 @@ import datetime
 import subprocess
 import argparse
 
-from collections import defaultdict
-
 
 def get_re_for_format_string(format_string):
 	"""
