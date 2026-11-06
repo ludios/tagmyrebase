@@ -61,10 +61,15 @@ def get_commit_with_message(commit: str) -> str:
 	return message
 
 
-def get_current_branch() -> str:
-	return subprocess.check_output([
-		"git", "rev-parse", "--abbrev-ref", "HEAD"
+def get_current_branch() -> str | None:
+	"""
+	Return the name of the current branch (without "refs/heads/"), or None if
+	HEAD is detached.
+	"""
+	branch = subprocess.check_output([
+		"git", "branch", "--show-current"
 	], encoding="utf-8").rstrip("\r\n")
+	return branch or None
 
 
 @dataclass(frozen=True)
@@ -233,13 +238,18 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 		try:
 			upstream_commit = get_upstream_commit()
 		except UnknownUpstream:
-			# TODO: just use "my-branch" if this fails
 			current_branch = get_current_branch()
-			print("Could not determine the upstream commit because git could not resolve @{upstream} "
-				"(see git's error message above).  If the current branch has no upstream branch "
-				"configured, you probably want to do something like:\n\n"
-				f"git branch --set-upstream-to=origin/master {current_branch}\n"
-				f"git config branch.{current_branch}.rebase true", file=sys.stderr)
+			if current_branch is None:
+				print("Could not determine the upstream commit because HEAD is detached (for example, "
+					"during a rebase), so there is no current branch whose @{upstream} could be used.  "
+					"Check out a branch that has an upstream branch (or finish the rebase), and then "
+					"run this again.", file=sys.stderr)
+			else:
+				print("Could not determine the upstream commit because git could not resolve @{upstream} "
+					"(see git's error message above).  If the current branch has no upstream branch "
+					"configured, you probably want to do something like:\n\n"
+					f"git branch --set-upstream-to=origin/master {current_branch}\n"
+					f"git config branch.{current_branch}.rebase true", file=sys.stderr)
 			sys.exit(2)
 		except NoCommonAncestor:
 			print("Could not determine the upstream commit because HEAD and @{upstream} have no "
