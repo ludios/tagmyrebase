@@ -134,7 +134,16 @@ When there are multiple good ways to implement something, especially involving s
 
 There are no automated tests, so at least run `./tagmyrebase --help`, which shows that the script still parses and builds its argument parser.
 
-To try a change for real, don't run `tagmyrebase` in this repository, because it would create tags here (and, with `--branch-head`, create or move a branch here). Instead, under /tmp: make an "upstream" repository, clone it, commit a patch in the clone, add a commit to the upstream repository, run `git pull --rebase` in the clone, and then run `tagmyrebase` in the clone. (`test/make-dummy-commit` reads /usr/share/dict/words, which this machine doesn't have.)
+To try a change for real, run it in a scratch clone, not in this repository: with `-u`, `-t` or `-b`, it creates tags or a branch in whichever repository it runs in. The `tagmyrebase` on PATH is the system-installed copy, so run this checkout's script by its path. From this repository's top directory:
+
+	R=$PWD
+	S=$(mktemp -d /tmp/tagmyrebase-test.XXXX)
+	cd "$S" && git init -q up && git -C up commit -q --allow-empty -m base && git clone -q up clone
+	git -C clone commit -q --allow-empty -m patch
+	(cd up && bash "$R/test/make-dummy-commit")
+	cd clone && git pull -q --rebase && "$R/tagmyrebase" -u "U-{YMDN}" -t "good-{YMDN}" -b good
+
+`test/make-dummy-commit` isn't executable, so run it with `bash`. This machine has no /usr/share/dict/words, so `cat` prints errors, but the script still commits.
 
 # Using git safely
 
