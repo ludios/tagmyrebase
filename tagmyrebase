@@ -64,6 +64,10 @@ def get_current_branch():
 	], encoding="utf-8").rstrip("\r\n")
 
 
+class NoHeadCommit(Exception):
+	pass
+
+
 def get_refs():
 	stdout = subprocess.check_output([
 		"git", "show-ref", "--head", "--dereference"
@@ -89,6 +93,8 @@ def get_refs():
 		elif ref == "HEAD":
 			refs["HEAD"] = commit
 		# We don't need remotes
+	if refs["HEAD"] is None:
+		raise NoHeadCommit("HEAD does not point to a commit, because the current branch has no commits yet")
 	return refs
 
 
