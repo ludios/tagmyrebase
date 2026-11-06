@@ -98,7 +98,7 @@ When writing _any_ kind of code, including for the above:
 
   Otherwise, plain functions are generally fine.
 
-Minutae:
+Minutiae:
 
 - Block contents should not be on the same line that opened the block.
 - Put `return`, `continue`, `break`, `raise`, `yield`, `await` statements on their own line so that they're obvious.
