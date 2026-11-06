@@ -79,9 +79,9 @@ class Refs:
 	"""
 	tags:  dict[str, str]
 	"""
-	Maps each tag name to the hash of the object that the tag points to.  For
-	an annotated tag, that is the object (usually a commit) that the tag object
-	points to, not the tag object itself.
+	Maps each tag name to the hash of the object (usually a commit) that the
+	tag finally points to.  For an annotated tag, that is the object at the end
+	of the chain of tag objects, never a tag object.
 	"""
 	heads: dict[str, str]
 	"""Maps each local branch name to the commit that the branch points to."""
@@ -113,13 +113,13 @@ def get_refs() -> Refs:
 	for line in lines:
 		commit, ref = line.split(" ", 1)
 		if ref.startswith("refs/tags/"):
-			# For the old heavyweight tags, use the dereference line ending with ^{}
-			# which point to the correct commit. `git show-ref --head --dereference`
-			# prints ^{} line after the tag line, so the wrong commit will be replaced
-			# with correct commit.
+			# For an annotated tag, show-ref prints a line with the hash of the tag
+			# object, and then a line for the same name with ^{} appended, with the
+			# hash of the object that the tag finally points to.  So the second line
+			# replaces the first line's hash in `tags`.
 			#
-			# For the new lightweight tags, there is no dereference line, but the tag
-			# itself points to the correct commit.
+			# A lightweight tag has only one line, which already has the hash of the
+			# object that the tag points to.
 			tag = ref.replace("refs/tags/", "", 1)
 			tag = tag.removesuffix(DEREF)
 			tags[tag] = commit
