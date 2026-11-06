@@ -240,10 +240,11 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 		except UnknownUpstream:
 			current_branch = get_current_branch()
 			if current_branch is None:
-				print("Could not determine the upstream commit because HEAD is detached (for example, "
-					"during a rebase), so there is no current branch whose @{upstream} could be used.  "
-					"Check out a branch that has an upstream branch (or finish the rebase), and then "
-					"run this again.", file=sys.stderr)
+				print("Could not determine the upstream commit because HEAD is detached, so there is "
+					"no current branch whose @{upstream} could be used.  If a rebase is in progress, "
+					"finish it (`git rebase --continue`) or abort it (`git rebase --abort`) first; "
+					"either one puts HEAD back on the branch that was being rebased.  Otherwise, "
+					"check out the branch whose upstream commit you want to tag.", file=sys.stderr)
 			else:
 				print("Could not determine the upstream commit because git could not resolve @{upstream} "
 					"(see git's error message above).  If the current branch has no upstream branch "
