@@ -29,7 +29,7 @@ import datetime
 import re
 import subprocess
 import sys
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TextIO
 
@@ -77,15 +77,15 @@ class Refs:
 	"""
 	The full hashes that HEAD, the local branches, and the tags point to.
 	"""
-	tags:  dict[str, str]
+	tags: Mapping[str, str]
 	"""
 	Maps each tag name to the hash of the object (usually a commit) that the
 	tag finally points to.  For an annotated tag, that is the object at the end
 	of the chain of tag objects, never a tag object.
 	"""
-	heads: dict[str, str]
+	heads: Mapping[str, str]
 	"""Maps each local branch name to the commit that the branch points to."""
-	head:  str
+	head: str
 	"""The commit that HEAD points to."""
 
 
@@ -133,7 +133,7 @@ def get_refs() -> Refs:
 	return Refs(tags=tags, heads=heads, head=head)
 
 
-def get_keys_for_value(d: dict[str, str], value: str) -> list[str]:
+def get_keys_for_value(d: Mapping[str, str], value: str) -> list[str]:
 	KEY   = 0
 	VALUE = 1
 	return [t[KEY] for t in d.items() if t[VALUE] == value]
