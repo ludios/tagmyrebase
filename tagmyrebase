@@ -239,8 +239,9 @@ def mark_commits(args):
 		except UnknownUpstream:
 			# TODO: just use "my-branch" if this fails
 			current_branch = get_current_branch()
-			print("Could not determine the upstream commit because this branch has never been rebased, "
-				"nor is it configured to merge with a branch.  You probably want to do something like:\n\n"
+			print("Could not determine the upstream commit because git could not resolve @{upstream} "
+				"(see git's error message above).  If the current branch has no upstream branch "
+				"configured, you probably want to do something like:\n\n"
 				f"git branch --set-upstream-to=origin/master {current_branch}\n"
 				f"git config branch.{current_branch}.rebase true", file=sys.stderr)
 			sys.exit(2)
