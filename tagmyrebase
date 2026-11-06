@@ -25,6 +25,9 @@ on the HEAD and upstream commits.
 An option creates nothing if its commit already has a tag (for --tag-upstream
 and --tag-head) or a local branch (for --branch-head) whose name the option's
 format can expand to, with any date, time, or counter.
+
+--tag-upstream and --tag-head create lightweight tags, which git cannot sign,
+so they ignore git's tag.gpgSign setting.
 """
 
 import argparse
@@ -333,6 +336,9 @@ def main() -> None:
 	An option creates nothing if its commit already has a tag (for --tag-upstream
 	and --tag-head) or a local branch (for --branch-head) whose name the option's
 	format can expand to, with any date, time, or counter.
+
+	--tag-upstream and --tag-head create lightweight tags, which git cannot sign,
+	so they ignore git's tag.gpgSign setting.
 	""")
 
 	parser.add_argument("-u", "--tag-upstream", dest="tag_upstream",
