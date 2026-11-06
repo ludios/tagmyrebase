@@ -32,7 +32,6 @@ so they ignore git's tag.gpgSign setting.
 
 import argparse
 import datetime
-import os
 import re
 import subprocess
 import sys
@@ -57,14 +56,29 @@ def get_re_for_format_string(format_string: str) -> re.Pattern[str]:
 		r"\Z")
 
 
+def git(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
+	"""
+	Run git with the arguments args, and return the finished process, whose
+	stdout is everything that git wrote to its stdout, decoded as UTF-8.  If
+	check is true, raise subprocess.CalledProcessError if git exits with a
+	nonzero status.
+
+	git gets /dev/null as its stdin, because none of our git commands read
+	input, and because `git` may be a wrapper that runs git on another host
+	over `ssh -t` when stdin is a terminal.  Then ssh would read the keys typed
+	ahead for the next shell command and send them to the remote git, which
+	never reads them, so they would be lost.
+	"""
+	return subprocess.run(["git", *args], stdin=subprocess.DEVNULL,
+		stdout=subprocess.PIPE, encoding="utf-8", check=check)
+
+
 _message_cache: dict[str, str] = {}
 
 def get_commit_with_message(commit: str) -> str:
 	if commit in _message_cache:
 		return _message_cache[commit]
-	message = subprocess.check_output([
-		"git",  "log", "--format=oneline", "--max-count=1", commit
-	], encoding="utf-8").rstrip("\r\n")
+	message = git("log", "--format=oneline", "--max-count=1", commit).stdout.rstrip("\r\n")
 	_message_cache[commit] = message
 	return message
 
@@ -74,9 +88,7 @@ def get_current_branch() -> str | None:
 	Return the name of the current branch (without "refs/heads/"), or None if
 	HEAD is detached.
 	"""
-	branch = subprocess.check_output([
-		"git", "branch", "--show-current"
-	], encoding="utf-8").rstrip("\r\n")
+	branch = git("branch", "--show-current").stdout.rstrip("\r\n")
 	return branch or None
 
 
@@ -106,9 +118,7 @@ def get_refs() -> Refs:
 	Return the hashes that HEAD, the local branches, and the tags point to.
 	Raise NoHeadCommit if HEAD doesn't point to a commit.
 	"""
-	result = subprocess.run(
-		["git", "show-ref", "--head", "--dereference"],
-		stdout=subprocess.PIPE, encoding="utf-8", check=False)
+	result = git("show-ref", "--head", "--dereference", check=False)
 	# show-ref exits with status 1 if it lists no refs at all, as in a
 	# repository with no commits; then the loop below finds no HEAD.
 	if result.returncode != 1:
@@ -197,9 +207,7 @@ def merge_base_with_upstream(*options: str) -> str | None:
 	"""
 	# git resolves @{upstream} in repo_interpret_branch_name:
 	# https://github.com/git/git/blob/0ffa3e35c7c82ab8d0de226149fb03b3f7674d05/object-name.c#L1471
-	result = subprocess.run(
-		["git", "merge-base", *options, "@{upstream}", "HEAD"],
-		stdout=subprocess.PIPE, encoding="utf-8", check=False)
+	result = git("merge-base", *options, "@{upstream}", "HEAD", check=False)
 	if result.returncode == 1:
 		return None
 	if result.returncode == 128:
@@ -290,7 +298,7 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 			yield (f"Already tagged with {existing_tags_on_upstream!r}:", "", with_message(upstream_commit))
 		else:
 			expanded_tag_upstream = get_expanded_name(args.tag_upstream, t, existing_names)
-			subprocess.check_call(["git", "tag", "--no-sign", expanded_tag_upstream, upstream_commit])
+			git("tag", "--no-sign", expanded_tag_upstream, upstream_commit)
 			yield (f"Created: {expanded_tag_upstream}", "->", with_message(upstream_commit))
 
 	if args.tag_head:
@@ -299,7 +307,7 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 			yield (f"Already tagged with {existing_tags_on_head!r}:", "", with_message(refs.head))
 		else:
 			expanded_tag_head = get_expanded_name(args.tag_head, t, existing_names)
-			subprocess.check_call(["git", "tag", "--no-sign", expanded_tag_head])
+			git("tag", "--no-sign", expanded_tag_head)
 			yield (f"Created: {expanded_tag_head}", "->", with_message(refs.head))
 
 	if args.branch_head:
@@ -309,7 +317,7 @@ def mark_commits(args: argparse.Namespace) -> Iterator[tuple[str, str, str]]:
 			yield (f"Already branched as {', '.join(matching_branches_on_head)}:", "", with_message(refs.head))
 		else:
 			branch_name = get_expanded_name(args.branch_head, t, existing_names)
-			subprocess.check_call(["git", "branch", "-f", branch_name])
+			git("branch", "-f", branch_name)
 			yield (f"Created: {branch_name}", "->", with_message(refs.head))
 
 
@@ -356,11 +364,6 @@ def main() -> None:
 		print("Must specify one or more of --tag-head, "
 			"--branch-head, or --tag-upstream; see --help", file=sys.stderr)
 		sys.exit(1)
-
-	# None of our git commands read input, so give them /dev/null instead of
-	# the terminal. A git that runs on another host over `ssh -t` would
-	# otherwise read, and then throw away, the keys typed ahead for the shell.
-	os.dup2(os.open(os.devnull, os.O_RDONLY), 0)
 
 	rows: list[tuple[str, str, str]] = []
 	try:
