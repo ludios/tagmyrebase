@@ -95,12 +95,17 @@ class NoHeadCommit(Exception):
 
 def get_refs() -> Refs:
 	"""
+	Return the hashes that HEAD, the local branches, and the tags point to.
 	Raise NoHeadCommit if HEAD doesn't point to a commit.
 	"""
-	stdout = subprocess.check_output([
-		"git", "show-ref", "--head", "--dereference"
-	], encoding="utf-8")
-	lines  = stdout.replace("\r", "").strip("\n").split("\n")
+	result = subprocess.run(
+		["git", "show-ref", "--head", "--dereference"],
+		stdout=subprocess.PIPE, encoding="utf-8", check=False)
+	# show-ref exits with status 1 if it lists no refs at all, as in a
+	# repository with no commits; then the loop below finds no HEAD.
+	if result.returncode != 1:
+		result.check_returncode()
+	lines  = [line for line in result.stdout.replace("\r", "").split("\n") if line != ""]
 	DEREF  = "^{}"
 	tags:  dict[str, str] = {}
 	heads: dict[str, str] = {}
